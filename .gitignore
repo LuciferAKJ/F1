@@ -1,0 +1,28 @@
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts
+frontend/.env.local
+
+# Backend
+backend/__pycache__/
+backend/**/__pycache__/
+backend/assets/cache/
+backend/.env
+*.pyc
+
+# Test & Coverage
+backend/.pytest_cache/
+backend/.coverage
+backend/htmlcov/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/
+

@@ -1,0 +1,34 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: f1-replay-backend-dev
+    command: ["uvicorn", "main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    environment:
+      - FASTF1_CACHE_DIR=/app/assets/cache
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+    volumes:
+      - ./backend:/app
+      - fastf1-cache-dev:/app/assets/cache
+
+  frontend:
+    image: node:20-alpine
+    container_name: f1-replay-frontend-dev
+    working_dir: /app
+    command: ["npm", "run", "dev", "--", "-H", "0.0.0.0"]
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+
+volumes:
+  fastf1-cache-dev:

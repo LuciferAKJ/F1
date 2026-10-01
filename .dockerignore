@@ -1,0 +1,17 @@
+node_modules
+.next
+.git
+.github
+.pytest_cache
+__pycache__
+*.pyc
+*.pyo
+assets/cache/*
+!assets/cache/.gitkeep
+dist
+build
+coverage
+.env
+.env.local
+playwright-report
+test-results
