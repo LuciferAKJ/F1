@@ -2,7 +2,10 @@ import type {
   SeasonEventDTO, ReplayMetadataDTO, ReplayResponseDTO, ReplayFrameResponseDTO,
 } from "@/types/api";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ??
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  "http://localhost:8000";
 
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`);
@@ -41,6 +44,8 @@ export const apiClient = {
 };
 
 export function wsReplayUrl(year: number, event: string, sessionType: string): string {
-  const wsBase = API_BASE.replace(/^http/, "ws");
+  const wsBase =
+    process.env.NEXT_PUBLIC_WS_URL ??
+    API_BASE.replace(/^http(s?):/, "ws$1:");
   return `${wsBase}/ws/replay/${year}/${encodeURIComponent(event)}/${sessionType}`;
 }
