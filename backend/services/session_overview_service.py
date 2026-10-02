@@ -1,7 +1,6 @@
 import logging
-import pandas as pd
 
-from models.schemas import SessionInfo, DriverMeta, CircuitData
+from models.schemas import CircuitData, DriverMeta, SessionInfo
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +31,7 @@ def build_session_overview(session, year: int, event: str, session_type: str) ->
                     tel = laps.pick_fastest().get_telemetry()
                     circuit_x = tel["X"].tolist()
                     circuit_y = tel["Y"].tolist()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("Skipping driver %s: %s", drv, exc)
 
     circuit = CircuitData(

@@ -1,7 +1,8 @@
 import logging
 import os
-import fastf1
 from functools import lru_cache
+
+import fastf1
 
 from config import get_settings
 

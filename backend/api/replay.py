@@ -1,15 +1,19 @@
 import logging
+
 from fastapi import APIRouter, HTTPException, Path, Query
 
+from models.schemas import (
+    DriverFrameOut,
+    ReplayFrameOut,
+    ReplayFrameResponse,
+    ReplayMetadataResponse,
+    ReplayResponse,
+)
 from services import fastf1_service
 from services.session_overview_service import build_session_overview
 from telemetry.pipeline import get_replay_data
-from telemetry.query import filter_frames, frame_at_timestamp
-from models.schemas import (
-    ReplayResponse, DriverFrameOut, ReplayFrameOut,
-    ReplayMetadataResponse, ReplayFrameResponse,
-)
 from telemetry.processor import FRAME_INTERVAL_S
+from telemetry.query import filter_frames, frame_at_timestamp
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -32,7 +36,7 @@ def _to_frame_out(f) -> ReplayFrameOut:
 def _load_overview_and_replay(year: int, event: str, session_type: str):
     try:
         session = fastf1_service.get_session(year, event, session_type)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Failed to load session: {exc}") from exc
 
     info, drivers, circuit = build_session_overview(session, year, event, session_type)
@@ -41,7 +45,7 @@ def _load_overview_and_replay(year: int, event: str, session_type: str):
 
     try:
         replay_data = get_replay_data(year, event, session_type)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Failed to build replay frames: {exc}") from exc
 
     if not replay_data.frames:

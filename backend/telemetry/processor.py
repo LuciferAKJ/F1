@@ -1,10 +1,12 @@
 """Converts raw per-driver telemetry into synchronized ReplayFrames on a shared time grid."""
 from __future__ import annotations
+
 import bisect
 import logging
+
 import pandas as pd
 
-from telemetry.models import ReplayFrame, DriverFrame, ReplayData
+from telemetry.models import DriverFrame, ReplayData, ReplayFrame
 
 logger = logging.getLogger(__name__)
 

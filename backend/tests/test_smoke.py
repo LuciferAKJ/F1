@@ -1,5 +1,5 @@
 """Smoke test: verify the test framework is correctly wired up."""
-from telemetry.models import DriverFrame, ReplayFrame, ReplayData
+from telemetry.models import DriverFrame, ReplayData, ReplayFrame
 
 
 def test_driver_frame_creation(sample_driver_frame: DriverFrame) -> None:

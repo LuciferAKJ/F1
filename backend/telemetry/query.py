@@ -1,6 +1,8 @@
 """Filtering and lookup helpers over a list of ReplayFrame."""
 from __future__ import annotations
+
 import bisect
+
 from telemetry.models import ReplayFrame
 
 

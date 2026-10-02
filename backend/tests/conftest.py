@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from telemetry.models import DriverFrame, ReplayFrame, ReplayData
+from telemetry.models import DriverFrame, ReplayData, ReplayFrame
 
 
 @pytest.fixture()
@@ -37,18 +37,21 @@ def sample_replay_frames() -> list[ReplayFrame]:
     def make_frame(ts: float, lap: int, drivers: list[DriverFrame]) -> ReplayFrame:
         return ReplayFrame(timestamp=ts, lap=lap, drivers=drivers)
 
-    ver = lambda ts, lap, pos: DriverFrame(
-        driver_id="VER", x=100+ts, y=200+ts,
-        speed=300.0, gear=7, throttle=100.0,
-        brake=False, rpm=11000.0, drs=0,
-        tyre="MEDIUM", lap=lap, sector=1, position=pos,
-    )
-    ham = lambda ts, lap, pos: DriverFrame(
-        driver_id="HAM", x=90+ts, y=190+ts,
-        speed=295.0, gear=7, throttle=98.0,
-        brake=False, rpm=10800.0, drs=0,
-        tyre="HARD", lap=lap, sector=1, position=pos,
-    )
+    def ver(ts: float, lap: int, pos: int) -> DriverFrame:
+        return DriverFrame(
+            driver_id="VER", x=100+ts, y=200+ts,
+            speed=300.0, gear=7, throttle=100.0,
+            brake=False, rpm=11000.0, drs=0,
+            tyre="MEDIUM", lap=lap, sector=1, position=pos,
+        )
+
+    def ham(ts: float, lap: int, pos: int) -> DriverFrame:
+        return DriverFrame(
+            driver_id="HAM", x=90+ts, y=190+ts,
+            speed=295.0, gear=7, throttle=98.0,
+            brake=False, rpm=10800.0, drs=0,
+            tyre="HARD", lap=lap, sector=1, position=pos,
+        )
 
     return [
         make_frame(0.0, 1, [ver(0.0, 1, 1), ham(0.0, 1, 2)]),

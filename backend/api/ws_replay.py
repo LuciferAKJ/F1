@@ -12,13 +12,15 @@ Server -> Client messages (JSON):
   {"type": "error", "message": "..."}
 """
 from __future__ import annotations
+
 import asyncio
 import logging
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from telemetry.pipeline import get_replay_data
-from telemetry.query import frame_at_timestamp
 from telemetry.processor import FRAME_INTERVAL_S
+from telemetry.query import frame_at_timestamp
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -53,7 +55,7 @@ async def ws_replay(websocket: WebSocket, year: int, event: str, session_type: s
 
     try:
         replay_data = await asyncio.to_thread(get_replay_data, year, event, session_type)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         await websocket.send_json({"type": "error", "message": f"Failed to load replay: {exc}"})
         await websocket.close()
         return

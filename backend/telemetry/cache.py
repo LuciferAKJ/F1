@@ -2,6 +2,7 @@
 FastF1 loading + interpolation entirely.
 """
 from __future__ import annotations
+
 import logging
 import os
 import pickle
@@ -27,7 +28,7 @@ def load_cached(year: int, event: str, session_type: str) -> ReplayData | None:
             data = pickle.load(f)
         logger.info("Loaded cached replay data from %s", path)
         return data
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("Failed to read replay cache %s: %s", path, exc)
         return None
 
@@ -38,5 +39,5 @@ def save_cache(year: int, event: str, session_type: str, data: ReplayData) -> No
         with open(path, "wb") as f:
             pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
         logger.info("Cached replay data to %s", path)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("Failed to write replay cache %s: %s", path, exc)

@@ -1,5 +1,6 @@
 """Dataclasses representing processed replay data (backend-internal, mirrored by Pydantic schemas for the API)."""
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 
 

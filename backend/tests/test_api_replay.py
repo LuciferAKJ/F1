@@ -1,7 +1,9 @@
 """Integration tests for the /api/replay routes."""
 from __future__ import annotations
-from unittest.mock import patch, MagicMock
-from models.schemas import SessionInfo, DriverMeta, CircuitData
+
+from unittest.mock import MagicMock, patch
+
+from models.schemas import CircuitData, DriverMeta, SessionInfo
 from telemetry.models import ReplayData
 
 

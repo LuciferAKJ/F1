@@ -1,8 +1,11 @@
 """Integration tests for the /api/sessions routes."""
 from __future__ import annotations
-from unittest.mock import patch, MagicMock
+
+from unittest.mock import MagicMock, patch
+
 import pandas as pd
-from models.schemas import SessionInfo, DriverMeta, CircuitData
+
+from models.schemas import CircuitData, DriverMeta, SessionInfo
 
 
 def test_list_events_success(app_client):

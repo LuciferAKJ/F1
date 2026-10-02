@@ -1,6 +1,6 @@
 """Unit tests for telemetry.loader module."""
 from __future__ import annotations
-import pytest
+
 from telemetry.loader import _sector_for_row
 
 

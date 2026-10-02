@@ -1,13 +1,14 @@
 import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import ORJSONResponse
 
-from config import get_settings
-from api.sessions import router as sessions_router
 from api.replay import router as replay_router
+from api.sessions import router as sessions_router
 from api.ws_replay import router as ws_replay_router
+from config import get_settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)

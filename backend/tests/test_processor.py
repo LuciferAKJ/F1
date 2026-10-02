@@ -1,6 +1,7 @@
 """Unit tests for telemetry.processor frame interpolation and replay frame construction."""
 
 import pandas as pd
+
 from telemetry.processor import _interpolate_row, build_replay_frames
 
 

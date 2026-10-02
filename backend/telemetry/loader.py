@@ -2,7 +2,9 @@
 tyre compound, lap number, sector) for an entire race from a loaded FastF1 session.
 """
 from __future__ import annotations
+
 import logging
+
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -35,14 +37,14 @@ def load_driver_raw_telemetry(session, drivers: list[str]) -> dict[str, pd.DataF
             for _, lap in driver_laps.iterlaps():
                 try:
                     tel = lap.get_telemetry().add_distance()
-                except Exception:  # noqa: BLE001
+                except Exception:
                     tel = lap.get_telemetry()
                     tel["Distance"] = 0.0
                 if tel.empty:
                     continue
 
                 cols = [c for c in TELEMETRY_COLUMNS if c in tel.columns]
-                tel = tel[cols + ["Distance", "SessionTime"]].copy()
+                tel = tel[[*cols, "Distance", "SessionTime"]].copy()
                 tel["LapNumber"] = int(lap["LapNumber"])
                 tel["Compound"] = lap.get("Compound", "UNKNOWN") or "UNKNOWN"
 
@@ -53,7 +55,7 @@ def load_driver_raw_telemetry(session, drivers: list[str]) -> dict[str, pd.DataF
 
                 session_secs = tel["SessionTime"].dt.total_seconds()
                 lap_relative = session_secs - (lap_start if lap_start is not None else session_secs.iloc[0])
-                tel["Sector"] = lap_relative.apply(lambda v: _sector_for_row(v, s1, s2))
+                tel["Sector"] = lap_relative.apply(lambda v, s1=s1, s2=s2: _sector_for_row(v, s1, s2))
                 tel["t"] = session_secs
 
                 lap_frames.append(tel)
@@ -64,7 +66,7 @@ def load_driver_raw_telemetry(session, drivers: list[str]) -> dict[str, pd.DataF
             full = pd.concat(lap_frames, ignore_index=True)
             full = full.dropna(subset=["X", "Y", "t"]).sort_values("t").reset_index(drop=True)
             result[abbr] = full
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("Failed to load raw telemetry for %s: %s", abbr, exc)
 
     return result

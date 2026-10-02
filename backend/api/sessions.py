@@ -1,10 +1,11 @@
 import logging
-from fastapi import APIRouter, HTTPException, Path
-import pandas as pd
 
+import pandas as pd
+from fastapi import APIRouter, HTTPException, Path
+
+from models.schemas import SeasonEvent, SessionDetailResponse
 from services import fastf1_service
 from services.session_overview_service import build_session_overview
-from models.schemas import SeasonEvent, SessionDetailResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -14,7 +15,7 @@ router = APIRouter()
 def list_events(year: int = Path(..., ge=1950, le=2050, description="Championship season year")) -> list[SeasonEvent]:
     try:
         schedule = fastf1_service.get_event_schedule(year)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Failed to load schedule: {exc}") from exc
 
     events: list[SeasonEvent] = []
@@ -37,7 +38,7 @@ def get_session_detail(
 ) -> SessionDetailResponse:
     try:
         session = fastf1_service.get_session(year, event, session_type)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Failed to load session: {exc}") from exc
 
     info, drivers, circuit = build_session_overview(session, year, event, session_type)
