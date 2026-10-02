@@ -266,6 +266,25 @@ docker compose -f docker-compose.dev.yml up --build
 
 ---
 
+## Production Deployment
+
+The project is architected for dual-cloud production hosting:
+- **Frontend**: Hosted on [Vercel](https://vercel.com) (Next.js 15 App Router).
+- **Backend**: Hosted on [Railway](https://railway.app) / [Render](https://render.com) (FastAPI + Uvicorn Docker container).
+
+For complete step-by-step instructions, environment variable matrix, storage configuration, and verification checklists, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+### Live Architecture & Environment Setup
+- **Frontend Environment (`Vercel`)**:
+  - `NEXT_PUBLIC_API_URL`: `https://<your-backend-domain>.up.railway.app`
+  - `NEXT_PUBLIC_WS_URL`: `wss://<your-backend-domain>.up.railway.app` (optional, automatically derived)
+- **Backend Environment (`Railway`)**:
+  - `FRONTEND_ORIGIN`: `https://<your-frontend-domain>.vercel.app`
+  - `FASTF1_CACHE_DIR`: `/app/assets/cache` (mount persistent volume here)
+  - `PORT`: Injected by Railway (default `8000`)
+
+---
+
 ## Build
 
 ```bash

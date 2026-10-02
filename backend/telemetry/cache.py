@@ -7,16 +7,22 @@ import logging
 import os
 import pickle
 
+from config import get_settings
 from telemetry.models import ReplayData
 
 logger = logging.getLogger(__name__)
-CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", "assets", "cache", "replay")
+
+
+def _get_cache_dir() -> str:
+    settings = get_settings()
+    return os.path.join(settings.fastf1_cache_dir, "replay")
 
 
 def _cache_path(year: int, event: str, session_type: str) -> str:
-    os.makedirs(CACHE_DIR, exist_ok=True)
+    cache_dir = _get_cache_dir()
+    os.makedirs(cache_dir, exist_ok=True)
     safe_event = event.replace(" ", "_").replace("/", "_")
-    return os.path.join(CACHE_DIR, f"{year}_{safe_event}_{session_type}.pkl")
+    return os.path.join(cache_dir, f"{year}_{safe_event}_{session_type}.pkl")
 
 
 def load_cached(year: int, event: str, session_type: str) -> ReplayData | None:
