@@ -2,9 +2,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from models.schemas import CircuitData, DriverMeta, SessionInfo
 
 
-@dataclass
+@dataclass(slots=True)
 class DriverFrame:
     driver_id: str  # abbreviation, e.g. "VER"
     x: float
@@ -21,15 +25,23 @@ class DriverFrame:
     position: int  # 1-based running order at this instant
 
 
-@dataclass
+@dataclass(slots=True)
 class ReplayFrame:
     timestamp: float  # seconds from session start
     lap: int
     drivers: list[DriverFrame] = field(default_factory=list)
 
 
-@dataclass
+@dataclass(slots=True)
 class ReplayData:
     frames: list[ReplayFrame]
     min_time: float
     max_time: float
+
+
+@dataclass(slots=True)
+class ProcessedSession:
+    info: SessionInfo
+    drivers: list[DriverMeta]
+    circuit: CircuitData
+    replay_data: ReplayData

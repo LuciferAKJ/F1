@@ -50,19 +50,24 @@ export function MainDashboard({ race }: MainDashboardProps) {
   const { preferences, setPreference } = usePreferences();
   const restoredDriverRef = useRef(false);
 
+  // Stable reference to the active race configuration to prevent redundant hook cycles
+  const activeRace = useMemo(
+    () => ({ year: race.year, event: race.event, sessionType: race.sessionType }),
+    [race.year, race.event, race.sessionType]
+  );
+
   // Register the requested race on mount / when it changes.
   useEffect(() => {
-    setSelectedRace(race);
+    setSelectedRace(activeRace);
     restoredDriverRef.current = false;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [race.year, race.event, race.sessionType]);
+  }, [activeRace, setSelectedRace]);
 
-  useReplayMetadata(selectedRace);
-  const ws = useReplayWebSocket(selectedRace);
+  useReplayMetadata(activeRace);
+  const ws = useReplayWebSocket(activeRace);
   // While paused, fetch the exact frame for the scrub position (play mode gets frames from the WS stream).
-  useReplayFrameAt(selectedRace, currentTimestamp, !playing);
+  useReplayFrameAt(activeRace, currentTimestamp, !playing);
   // Computed once per loaded replay (memoized) and shared by the timeline markers + intelligence panel below.
-  const { intelligence, isLoading: intelligenceLoading } = useRaceIntelligence(selectedRace);
+  const { intelligence, isLoading: intelligenceLoading } = useRaceIntelligence(activeRace);
 
   // Publish the WebSocket's seek function to the store (mirrors the existing pixiControls
   // pattern) so global UI like the command palette can seek without prop-drilling.

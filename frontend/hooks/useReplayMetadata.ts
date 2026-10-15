@@ -11,7 +11,10 @@ export function useReplayMetadata(race: SelectedRace | null) {
     queryKey: ["replay-metadata", race?.year, race?.event, race?.sessionType],
     queryFn: () => apiClient.getReplayMetadata(race!.year, race!.event, race!.sessionType),
     enabled: race !== null,
-    staleTime: 1000 * 60 * 30,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   });
 
   useEffect(() => {

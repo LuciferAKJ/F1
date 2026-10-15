@@ -13,5 +13,8 @@ export function useFullReplayData(race: SelectedRace | null) {
     queryFn: () => apiClient.getReplay(race!.year, race!.event, race!.sessionType),
     enabled: race !== null,
     staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   });
 }

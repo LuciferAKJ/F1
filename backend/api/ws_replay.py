@@ -18,7 +18,7 @@ import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from telemetry.pipeline import get_replay_data
+from telemetry.pipeline import get_processed_session
 from telemetry.processor import FRAME_INTERVAL_S
 from telemetry.query import frame_at_timestamp
 
@@ -54,7 +54,8 @@ async def ws_replay(websocket: WebSocket, year: int, event: str, session_type: s
     await websocket.accept()
 
     try:
-        replay_data = await asyncio.to_thread(get_replay_data, year, event, session_type)
+        proc = await get_processed_session(year, event, session_type)
+        replay_data = proc.replay_data
     except Exception as exc:
         await websocket.send_json({"type": "error", "message": f"Failed to load replay: {exc}"})
         await websocket.close()

@@ -1,11 +1,11 @@
 """Integration tests for the /api/sessions routes."""
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pandas as pd
 
-from models.schemas import CircuitData, DriverMeta, SessionInfo
+from telemetry.models import ProcessedSession
 
 
 def test_list_events_success(app_client):
@@ -34,47 +34,14 @@ def test_list_events_error_handling(app_client):
         assert "Failed to load schedule" in resp.json()["detail"]
 
 
-def test_get_session_detail_success(app_client):
-    mock_session = MagicMock()
-    # Mock laps DataFrame
-    mock_laps = pd.DataFrame({
-        "LapStartTime": [pd.Timedelta(seconds=100.0)],
-        "LapTime": [pd.Timedelta(seconds=90.0)],
-    })
-    mock_session.laps = mock_laps
-
-    mock_info = SessionInfo(
-        year=2024,
-        event="Bahrain",
-        session_name="Race",
-        session_type="R",
-        total_laps=57,
-    )
-    mock_drivers = [
-        DriverMeta(
-            abbreviation="VER",
-            team_name="Red Bull Racing",
-            team_color="#3671C6",
-            driver_number="1",
-        )
-    ]
-    mock_circuit = CircuitData(
-        x=[0.0, 10.0, 20.0],
-        y=[0.0, 15.0, 30.0],
-        min_x=0.0,
-        max_x=20.0,
-        min_y=0.0,
-        max_y=30.0,
-    )
-
-    with patch("services.fastf1_service.get_session", return_value=mock_session), \
-         patch("api.sessions.build_session_overview", return_value=(mock_info, mock_drivers, mock_circuit)):
+def test_get_session_detail_success(app_client, sample_processed_session: ProcessedSession):
+    with patch("api.sessions.get_processed_session", new_callable=AsyncMock, return_value=sample_processed_session):
         resp = app_client.get("/api/sessions/2024/Bahrain/R")
         assert resp.status_code == 200
         body = resp.json()
         assert body["info"]["event"] == "Bahrain"
-        assert len(body["drivers"]) == 1
+        assert len(body["drivers"]) == 2
         assert body["drivers"][0]["abbreviation"] == "VER"
         assert len(body["circuit"]["x"]) == 3
-        assert body["minRaceTime"] == 100.0
-        assert body["maxRaceTime"] == 190.0
+        assert body["minRaceTime"] == sample_processed_session.replay_data.min_time
+        assert body["maxRaceTime"] == sample_processed_session.replay_data.max_time

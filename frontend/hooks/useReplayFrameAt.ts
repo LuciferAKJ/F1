@@ -13,6 +13,10 @@ export function useReplayFrameAt(race: SelectedRace | null, timestamp: number, e
     queryKey: ["replay-frame", race?.year, race?.event, race?.sessionType, timestamp],
     queryFn: () => apiClient.getReplayFrameAt(race!.year, race!.event, race!.sessionType, timestamp),
     enabled: enabled && race !== null,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   });
 
   useEffect(() => {

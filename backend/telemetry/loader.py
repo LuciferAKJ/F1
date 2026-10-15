@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 
+import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -58,12 +59,18 @@ def load_driver_raw_telemetry(session, drivers: list[str]) -> dict[str, pd.DataF
                 tel["Sector"] = lap_relative.apply(lambda v, s1=s1, s2=s2: _sector_for_row(v, s1, s2))
                 tel["t"] = session_secs
 
+                # Downcast float columns to float32
+                for col in ["X", "Y", "Speed", "Throttle", "RPM", "Distance", "t"]:
+                    if col in tel.columns:
+                        tel[col] = tel[col].astype(np.float32)
+
                 lap_frames.append(tel)
 
             if not lap_frames:
                 continue
 
             full = pd.concat(lap_frames, ignore_index=True)
+            del lap_frames
             full = full.dropna(subset=["X", "Y", "t"]).sort_values("t").reset_index(drop=True)
             result[abbr] = full
         except Exception as exc:

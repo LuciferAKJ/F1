@@ -4,7 +4,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from telemetry.models import DriverFrame, ReplayData, ReplayFrame
+from models.schemas import CircuitData, DriverMeta, SessionInfo
+from telemetry.models import DriverFrame, ProcessedSession, ReplayData, ReplayFrame
 
 
 @pytest.fixture()
@@ -71,4 +72,44 @@ def sample_replay_data(sample_replay_frames) -> ReplayData:
         frames=sample_replay_frames,
         min_time=0.0,
         max_time=3.0,
+    )
+
+
+@pytest.fixture()
+def sample_processed_session(sample_replay_data: ReplayData) -> ProcessedSession:
+    """A full ProcessedSession fixture for API integration tests."""
+    info = SessionInfo(
+        year=2024,
+        event="Bahrain",
+        session_name="Race",
+        session_type="R",
+        total_laps=57,
+    )
+    drivers = [
+        DriverMeta(
+            abbreviation="VER",
+            team_name="Red Bull Racing",
+            team_color="#3671C6",
+            driver_number="1",
+        ),
+        DriverMeta(
+            abbreviation="HAM",
+            team_name="Mercedes",
+            team_color="#00D2BE",
+            driver_number="44",
+        ),
+    ]
+    circuit = CircuitData(
+        x=[0.0, 10.0, 20.0],
+        y=[0.0, 15.0, 30.0],
+        min_x=0.0,
+        max_x=20.0,
+        min_y=0.0,
+        max_y=30.0,
+    )
+    return ProcessedSession(
+        info=info,
+        drivers=drivers,
+        circuit=circuit,
+        replay_data=sample_replay_data,
     )

@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     frontend_origin: str | None = None
+    max_cached_sessions: int = 1
+    max_concurrent_session_loads: int = 1
+    replay_cache_size: int = 1
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

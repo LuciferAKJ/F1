@@ -1,6 +1,5 @@
 import logging
 import os
-from functools import lru_cache
 
 import fastf1
 
@@ -26,15 +25,14 @@ def get_event_schedule(year: int):
     return fastf1.get_event_schedule(year, include_testing=False)
 
 
-@lru_cache(maxsize=16)
-def _load_session_cached(year: int, event: str, session_type: str):
+def get_session(year: int, event: str, session_type: str):
+    """Load a raw FastF1 session object directly.
+
+    Callers must extract required telemetry and immediately release references
+    to allow garbage collection.
+    """
     init_cache()
     logger.info("Loading FastF1 session %s %s %s", year, event, session_type)
     session = fastf1.get_session(year, event, session_type)
-    session.load(telemetry=True, weather=True, laps=True)
+    session.load(telemetry=True, weather=False, laps=True)
     return session
-
-
-def get_session(year: int, event: str, session_type: str):
-    """Load (and cache in-process) a FastF1 session object."""
-    return _load_session_cached(year, event, session_type)

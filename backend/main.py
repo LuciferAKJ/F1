@@ -34,3 +34,12 @@ app.include_router(ws_replay_router, tags=["websocket"])
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request, exc: Exception):
+    logger.error("Unhandled error processing %s %s: %s", request.method, request.url.path, exc, exc_info=True)
+    return ORJSONResponse(
+        status_code=500,
+        content={"detail": "An internal server error occurred while processing the request."},
+    )

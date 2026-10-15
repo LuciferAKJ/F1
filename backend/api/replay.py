@@ -9,9 +9,7 @@ from models.schemas import (
     ReplayMetadataResponse,
     ReplayResponse,
 )
-from services import fastf1_service
-from services.session_overview_service import build_session_overview
-from telemetry.pipeline import get_replay_data
+from telemetry.pipeline import get_processed_session
 from telemetry.processor import FRAME_INTERVAL_S
 from telemetry.query import filter_frames, frame_at_timestamp
 
@@ -33,25 +31,18 @@ def _to_frame_out(f) -> ReplayFrameOut:
     )
 
 
-def _load_overview_and_replay(year: int, event: str, session_type: str):
+async def _load_overview_and_replay(year: int, event: str, session_type: str):
     try:
-        session = fastf1_service.get_session(year, event, session_type)
+        proc = await get_processed_session(year, event, session_type)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Failed to load session: {exc}") from exc
 
-    info, drivers, circuit = build_session_overview(session, year, event, session_type)
-    if not circuit.x:
+    if not proc.circuit.x:
         raise HTTPException(status_code=404, detail="No telemetry available to build circuit map")
-
-    try:
-        replay_data = get_replay_data(year, event, session_type)
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Failed to build replay frames: {exc}") from exc
-
-    if not replay_data.frames:
+    if not proc.replay_data.frames:
         raise HTTPException(status_code=404, detail="No telemetry frames could be generated for this session")
 
-    return info, drivers, circuit, replay_data
+    return proc.info, proc.drivers, proc.circuit, proc.replay_data
 
 
 @router.get("/status")
@@ -61,7 +52,7 @@ def replay_status() -> dict:
 
 
 @router.get("/{year}/{event}/{session_type}", response_model=ReplayResponse)
-def get_replay(
+async def get_replay(
     year: int = Path(..., ge=1950, le=2050, description="Championship season year"),
     event: str = Path(..., min_length=1, max_length=100),
     session_type: str = Path(..., min_length=1, max_length=10),
@@ -74,7 +65,7 @@ def get_replay(
     frames, race duration. Use start_time/end_time/lap/driver to fetch only a segment,
     e.g. /api/replay/2024/Monaco/R?lap=25
     """
-    info, drivers, circuit, replay_data = _load_overview_and_replay(year, event, session_type)
+    info, drivers, circuit, replay_data = await _load_overview_and_replay(year, event, session_type)
     frames = filter_frames(replay_data.frames, start_time=start_time, end_time=end_time, lap=lap, driver=driver)
 
     return ReplayResponse(
@@ -84,7 +75,7 @@ def get_replay(
 
 
 @router.get("/{year}/{event}/{session_type}/metadata", response_model=ReplayMetadataResponse)
-def get_replay_metadata(
+async def get_replay_metadata(
     year: int = Path(..., ge=1950, le=2050, description="Championship season year"),
     event: str = Path(..., min_length=1, max_length=100),
     session_type: str = Path(..., min_length=1, max_length=10),
@@ -92,7 +83,7 @@ def get_replay_metadata(
     """Lightweight payload: drivers, teams, colors, total laps, duration, circuit info.
     No frame data - fetch this first, then request frames/segments separately.
     """
-    info, drivers, circuit, replay_data = _load_overview_and_replay(year, event, session_type)
+    info, drivers, circuit, replay_data = await _load_overview_and_replay(year, event, session_type)
     return ReplayMetadataResponse(
         info=info, drivers=drivers, circuit=circuit,
         total_laps=info.total_laps, duration=replay_data.max_time,
@@ -101,13 +92,13 @@ def get_replay_metadata(
 
 
 @router.get("/{year}/{event}/{session_type}/frame/{timestamp}", response_model=ReplayFrameResponse)
-def get_replay_frame(
+async def get_replay_frame(
     year: int = Path(..., ge=1950, le=2050, description="Championship season year"),
     event: str = Path(..., min_length=1, max_length=100),
     session_type: str = Path(..., min_length=1, max_length=10),
     timestamp: float = Path(..., ge=0.0, description="Race timestamp in seconds"),
 ) -> ReplayFrameResponse:
     """All driver positions/telemetry at a specific race-time timestamp (nearest available frame)."""
-    _, _, _, replay_data = _load_overview_and_replay(year, event, session_type)
+    _, _, _, replay_data = await _load_overview_and_replay(year, event, session_type)
     frame = frame_at_timestamp(replay_data.frames, timestamp)
     return ReplayFrameResponse(frame=_to_frame_out(frame) if frame else None)
