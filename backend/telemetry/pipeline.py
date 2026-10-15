@@ -12,7 +12,7 @@ from collections import OrderedDict
 from config import get_settings
 from services import fastf1_service
 from services.session_overview_service import build_session_overview
-from telemetry.cache import load_cached_session, save_cached_session
+from telemetry.cache import canonical_session_key, load_cached_session, save_cached_session
 from telemetry.loader import load_driver_raw_telemetry
 from telemetry.models import ProcessedSession, ReplayData
 from telemetry.processor import build_replay_frames
@@ -35,6 +35,7 @@ _session_locks_guard = threading.Lock()
 
 
 def _get_session_lock(key: tuple[int, str, str]) -> threading.Lock:
+    key = canonical_session_key(*key)
     with _session_locks_guard:
         if key not in _session_locks:
             _session_locks[key] = threading.Lock()
@@ -60,6 +61,7 @@ def _get_sync_semaphore() -> threading.Semaphore:
 
 
 def _cache_get(key: tuple[int, str, str]) -> ProcessedSession | None:
+    key = canonical_session_key(*key)
     with _memory_cache_lock:
         if key in _memory_cache:
             _memory_cache.move_to_end(key)
@@ -69,6 +71,7 @@ def _cache_get(key: tuple[int, str, str]) -> ProcessedSession | None:
 
 
 def _cache_put(key: tuple[int, str, str], session_data: ProcessedSession) -> None:
+    key = canonical_session_key(*key)
     settings = get_settings()
     max_sessions = getattr(settings, "max_cached_sessions", 1)
     replay_size = getattr(settings, "replay_cache_size", 1)
@@ -91,6 +94,7 @@ def _cache_put(key: tuple[int, str, str], session_data: ProcessedSession) -> Non
 
 def _process_session_sync(year: int, event: str, session_type: str) -> ProcessedSession:
     """Internal synchronous worker: loads FastF1, processes, caches to disk, and frees memory."""
+    year, event, session_type = canonical_session_key(year, event, session_type)
     key = (year, event, session_type)
 
     # 1. Quick in-memory cache check
@@ -157,6 +161,7 @@ def _process_session_sync(year: int, event: str, session_type: str) -> Processed
 
 async def get_processed_session(year: int, event: str, session_type: str) -> ProcessedSession:
     """Async single-flight entrypoint for obtaining a ProcessedSession."""
+    year, event, session_type = canonical_session_key(year, event, session_type)
     key = (year, event, session_type)
 
     # 1. Quick in-memory check
@@ -196,10 +201,13 @@ async def get_processed_session(year: int, event: str, session_type: str) -> Pro
     try:
         async with load_sem:
             processed = await asyncio.to_thread(_process_session_sync, year, event, session_type)
-            fut.set_result(processed)
+            _cache_put(key, processed)
+            if not fut.done():
+                fut.set_result(processed)
             return processed
     except BaseException as exc:
-        fut.set_exception(exc)
+        if not fut.done():
+            fut.set_exception(exc)
         raise
     finally:
         async with inflight_lock:
@@ -208,10 +216,12 @@ async def get_processed_session(year: int, event: str, session_type: str) -> Pro
 
 def get_replay_data(year: int, event: str, session_type: str) -> ReplayData:
     """Synchronous interface for getting ReplayData (compatible with existing callers and tests)."""
+    year, event, session_type = canonical_session_key(year, event, session_type)
     proc = _process_session_sync(year, event, session_type)
     return proc.replay_data
 
 
 def get_session_overview_and_replay(year: int, event: str, session_type: str) -> ProcessedSession:
     """Synchronous interface for getting the complete ProcessedSession."""
+    year, event, session_type = canonical_session_key(year, event, session_type)
     return _process_session_sync(year, event, session_type)

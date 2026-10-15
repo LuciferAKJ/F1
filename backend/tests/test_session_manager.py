@@ -98,14 +98,25 @@ def test_bounded_lru_cache_eviction():
         pipeline._cache_put((2026, "GP1", "Race"), s1)
         pipeline._cache_put((2026, "GP2", "Race"), s2)
         assert len(pipeline._memory_cache) == 2
-        assert (2026, "GP1", "Race") in pipeline._memory_cache
+        assert (2026, "GP1", "R") in pipeline._memory_cache
+        assert (2026, "GP2", "R") in pipeline._memory_cache
 
-        # Put GP3 (should evict GP1)
+        # Put GP3 (should evict GP1 because GP1 is oldest LRU entry)
         pipeline._cache_put((2026, "GP3", "Race"), s3)
         assert len(pipeline._memory_cache) == 2
-        assert (2026, "GP1", "Race") not in pipeline._memory_cache
-        assert (2026, "GP2", "Race") in pipeline._memory_cache
-        assert (2026, "GP3", "Race") in pipeline._memory_cache
+        assert (2026, "GP1", "R") not in pipeline._memory_cache
+        assert (2026, "GP2", "R") in pipeline._memory_cache
+        assert (2026, "GP3", "R") in pipeline._memory_cache
+
+        # Access GP2 to make it most-recently used (GP3 becomes oldest)
+        assert pipeline._cache_get((2026, "GP2", "Race")) is s2
+
+        # Put GP1 again (should evict GP3, keeping GP2 and GP1)
+        pipeline._cache_put((2026, "GP1", "Race"), s1)
+        assert len(pipeline._memory_cache) == 2
+        assert (2026, "GP3", "R") not in pipeline._memory_cache
+        assert (2026, "GP2", "R") in pipeline._memory_cache
+        assert (2026, "GP1", "R") in pipeline._memory_cache
 
 
 @pytest.mark.asyncio
@@ -296,3 +307,81 @@ def test_real_race_rss_diagnostic():
     if rss_after > 0:
         assert rss_after < 400.0, f"Memory footprint exceeded safety threshold: {rss_after:.1f} MB"
 
+
+def test_canonical_session_key_normalization():
+    """Verify that canonical_session_key correctly normalizes all session aliases and events."""
+    from backend.telemetry.cache import canonical_session_key
+
+    # R / Race variants
+    assert canonical_session_key(2026, "  Azerbaijan  ", "R") == (2026, "Azerbaijan", "R")
+    assert canonical_session_key("2026", "Azerbaijan", "Race") == (2026, "Azerbaijan", "R")
+    assert canonical_session_key(2026, "Azerbaijan", "race") == (2026, "Azerbaijan", "R")
+    assert canonical_session_key(2026, "Azerbaijan", "r") == (2026, "Azerbaijan", "R")
+
+    # Qualifying variants
+    assert canonical_session_key(2026, "Monaco", "Q") == (2026, "Monaco", "Q")
+    assert canonical_session_key(2026, "Monaco", "Qualifying") == (2026, "Monaco", "Q")
+    assert canonical_session_key(2026, "Monaco", "qualifying") == (2026, "Monaco", "Q")
+
+    # Sprint variants
+    assert canonical_session_key(2026, "Austria", "S") == (2026, "Austria", "S")
+    assert canonical_session_key(2026, "Austria", "Sprint") == (2026, "Austria", "S")
+
+    # Practice variants
+    assert canonical_session_key(2026, "Silverstone", "FP1") == (2026, "Silverstone", "FP1")
+    assert canonical_session_key(2026, "Silverstone", "Practice 1") == (2026, "Silverstone", "FP1")
+    assert canonical_session_key(2026, "Silverstone", "FP2") == (2026, "Silverstone", "FP2")
+    assert canonical_session_key(2026, "Silverstone", "Practice 2") == (2026, "Silverstone", "FP2")
+    assert canonical_session_key(2026, "Silverstone", "FP3") == (2026, "Silverstone", "FP3")
+    assert canonical_session_key(2026, "Silverstone", "Practice 3") == (2026, "Silverstone", "FP3")
+
+
+@pytest.mark.asyncio
+async def test_aliases_r_and_race_single_flight_and_cache_deduplication():
+    """Verify that concurrent requests using 'R' and 'Race' resolve to the same canonical key and load once."""
+    load_count = 0
+
+    def mock_process_sync(year, event, session_type):
+        nonlocal load_count
+        load_count += 1
+        return create_fake_session(event)
+
+    with patch("backend.telemetry.pipeline.load_cached_session", return_value=None), \
+         patch("backend.telemetry.pipeline._process_session_sync", side_effect=mock_process_sync):
+
+        res_r, res_race = await asyncio.gather(
+            pipeline.get_processed_session(2026, "Azerbaijan", "R"),
+            pipeline.get_processed_session(2026, "Azerbaijan", "Race"),
+        )
+
+        assert res_r is res_race
+        assert res_r.info.event == "Azerbaijan"
+        # Must only trigger ONE session load
+        assert load_count == 1
+        # Memory cache must have only ONE entry under canonical key
+        assert len(pipeline._memory_cache) == 1
+        assert (2026, "Azerbaijan", "R") in pipeline._memory_cache
+
+
+@pytest.mark.asyncio
+async def test_cancelled_future_concurrency_safety():
+    """Verify that a cancelled/failed leader request does not leave a stale future or corrupt state."""
+    with patch("backend.telemetry.pipeline.load_cached_session", return_value=None), \
+         patch("backend.telemetry.pipeline._process_session_sync", side_effect=RuntimeError("Simulated load failure")):
+
+        t1 = asyncio.create_task(pipeline.get_processed_session(2026, "FailureGP", "R"))
+        t2 = asyncio.create_task(pipeline.get_processed_session(2026, "FailureGP", "R"))
+
+        results = await asyncio.gather(t1, t2, return_exceptions=True)
+        assert isinstance(results[0], RuntimeError)
+        assert isinstance(results[1], RuntimeError)
+
+        # Inflight futures map must be completely clean
+        assert (2026, "FailureGP", "R") not in pipeline._inflight_futures
+
+        # Subsequent call should not encounter InvalidStateError
+        t3 = asyncio.create_task(pipeline.get_processed_session(2026, "FailureGP", "R"))
+        res3 = await asyncio.gather(t3, return_exceptions=True)
+        assert isinstance(res3[0], RuntimeError)
+
+        assert (2026, "FailureGP", "R") not in pipeline._inflight_futures

@@ -13,12 +13,40 @@ from telemetry.models import ProcessedSession, ReplayData
 logger = logging.getLogger(__name__)
 
 
+SESSION_TYPE_ALIASES = {
+    "r": "R",
+    "race": "R",
+    "q": "Q",
+    "qualifying": "Q",
+    "s": "S",
+    "sprint": "S",
+    "sq": "SS",
+    "sprint qualifying": "SS",
+    "sprint shootout": "SS",
+    "fp1": "FP1",
+    "practice 1": "FP1",
+    "fp2": "FP2",
+    "practice 2": "FP2",
+    "fp3": "FP3",
+    "practice 3": "FP3",
+}
+
+
+def canonical_session_key(year: int, event: str, session_type: str) -> tuple[int, str, str]:
+    """Normalize session key components (strip whitespace, resolve session type aliases)."""
+    norm_year = int(year)
+    norm_event = event.strip()
+    norm_session = SESSION_TYPE_ALIASES.get(session_type.strip().lower(), session_type.strip().upper())
+    return (norm_year, norm_event, norm_session)
+
+
 def _get_cache_dir() -> str:
     settings = get_settings()
     return os.path.join(settings.fastf1_cache_dir, "replay")
 
 
 def _cache_path(year: int, event: str, session_type: str) -> str:
+    year, event, session_type = canonical_session_key(year, event, session_type)
     cache_dir = _get_cache_dir()
     os.makedirs(cache_dir, exist_ok=True)
     safe_event = event.replace(" ", "_").replace("/", "_")

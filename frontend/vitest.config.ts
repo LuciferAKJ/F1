@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "jsdom",
-    fileParallelism: false,
+    pool: "threads",
     setupFiles: ["./vitest.setup.ts"],
     include: ["**/__tests__/**/*.test.{ts,tsx}", "**/*.test.{ts,tsx}"],
     exclude: ["node_modules", ".next", "e2e"],
