@@ -1,11 +1,11 @@
 import type { Application, Container, FederatedPointerEvent } from "pixi.js";
 import type { CameraMode } from "@/types/replay";
 
-const MIN_SCALE = 0.3;
-const MAX_SCALE = 6;
+const MIN_SCALE = 0.1;
+const MAX_SCALE = 8;
 const FOLLOW_LERP = 0.08;
 const SMOOTH_LERP = 0.15; // used for zoom/reset animation toward a target transform
-const FIT_MARGIN = 0.85; // leave breathing room around the circuit when auto-fitting
+const FIT_MARGIN = 0.88; // leave breathing room around the circuit when auto-fitting
 
 /**
  * Handles wheel-zoom, drag-pan, auto-fit, and camera-follow-driver behavior on a
@@ -17,6 +17,7 @@ export class CameraController {
   followAbbr: string | null = null;
 
   private dragging = false;
+  private userHasPanned = false;
   private lastPointer = { x: 0, y: 0 };
 
   private targetScale = 1;
@@ -44,12 +45,14 @@ export class CameraController {
 
   private onWheel = (e: WheelEvent): void => {
     e.preventDefault();
+    this.userHasPanned = true;
     const factor = e.deltaY > 0 ? 0.9 : 1.1;
     this.zoomAt(e.offsetX, e.offsetY, factor);
   };
 
   private onPointerDown = (e: FederatedPointerEvent): void => {
     this.dragging = true;
+    this.userHasPanned = true;
     this.mode = "free"; // manual pan cancels follow mode
     this.lastPointer = { x: e.global.x, y: e.global.y };
   };
@@ -99,15 +102,24 @@ export class CameraController {
   /** Smoothly animate back to a centered, fit-to-screen view of the whole circuit. */
   resetView(): void {
     const { width: screenW, height: screenH } = this.app.screen;
-    const fitScale =
-      this.worldWidth > 0 && this.worldHeight > 0
-        ? Math.min(screenW / this.worldWidth, screenH / this.worldHeight) * FIT_MARGIN
-        : 1;
+    if (screenW <= 0 || screenH <= 0 || this.worldWidth <= 0 || this.worldHeight <= 0) {
+      return;
+    }
+    const fitScale = Math.min(screenW / this.worldWidth, screenH / this.worldHeight) * FIT_MARGIN;
     this.targetScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, fitScale));
     this.targetX = screenW / 2;
     this.targetY = screenH / 2;
     this.mode = "free";
     this.followAbbr = null;
+    this.userHasPanned = false;
+  }
+
+  handleResize(): void {
+    if (!this.app.renderer) return;
+    this.app.stage.hitArea = this.app.screen;
+    if (this.mode === "free" && !this.userHasPanned) {
+      this.resetView();
+    }
   }
 
   followDriver(abbr: string): void {

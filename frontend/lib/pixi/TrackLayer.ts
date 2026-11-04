@@ -22,9 +22,18 @@ export class TrackLayer {
   private padding = 60;
   private localPoints: { x: number; y: number }[] = [];
   private cumulativeDist: number[] = [];
+  private coordScale = 1;
 
   constructor(circuit: CircuitData) {
     this.circuit = circuit;
+    const spanX = Math.max(this.circuit.maxX - this.circuit.minX, 1);
+    const spanY = Math.max(this.circuit.maxY - this.circuit.minY, 1);
+    const maxSpan = Math.max(spanX, spanY);
+    // Normalize coordinates so the circuit bounding box spans ~1000 units.
+    // This makes track stroke widths and camera auto-fit independent of whether
+    // upstream FastF1 telemetry provides coordinates in deci-meters, meters, or millimeters.
+    this.coordScale = 1000 / maxSpan;
+
     this.container = new Container();
     this.baseGraphics = new Graphics();
     this.lineGraphics = new Graphics();
@@ -138,21 +147,21 @@ export class TrackLayer {
     });
   }
 
-  /** Convert raw GPS X to local (unscaled) track-space X. */
+  /** Convert raw GPS X to local track-space X. */
   toLocalX(x: number): number {
-    return x - this.circuit.minX - (this.circuit.maxX - this.circuit.minX) / 2;
+    return (x - this.circuit.minX - (this.circuit.maxX - this.circuit.minX) / 2) * this.coordScale;
   }
 
   toLocalY(y: number): number {
     // Flip Y since screen space grows downward while GPS Y grows "up".
-    return -(y - this.circuit.minY - (this.circuit.maxY - this.circuit.minY) / 2);
+    return -(y - this.circuit.minY - (this.circuit.maxY - this.circuit.minY) / 2) * this.coordScale;
   }
 
   get worldWidth(): number {
-    return this.circuit.maxX - this.circuit.minX + this.padding * 2;
+    return (this.circuit.maxX - this.circuit.minX) * this.coordScale + this.padding * 2;
   }
 
   get worldHeight(): number {
-    return this.circuit.maxY - this.circuit.minY + this.padding * 2;
+    return (this.circuit.maxY - this.circuit.minY) * this.coordScale + this.padding * 2;
   }
 }

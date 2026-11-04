@@ -17,6 +17,7 @@ export class PixiReplayEngine {
   private cars = new Map<string, CarSprite>();
   private ready = false;
   private selectedAbbr: string | null = null;
+  private resizeObserver: ResizeObserver | null = null;
   private onVisibilityChange = (): void => {
     if (!this.app) return;
     if (document.hidden) this.app.ticker.stop();
@@ -55,6 +56,11 @@ export class PixiReplayEngine {
     world.scale.set(initial.scale);
     world.position.set(initial.x, initial.y);
 
+    this.resizeObserver = new ResizeObserver(() => {
+      this.camera?.handleResize();
+    });
+    this.resizeObserver.observe(container);
+
     app.ticker.add(this.onTick);
     document.addEventListener("visibilitychange", this.onVisibilityChange);
     this.ready = true;
@@ -62,7 +68,17 @@ export class PixiReplayEngine {
 
   private onTick = (): void => {
     if (!this.camera) return;
-    this.cars.forEach((car) => car.tick());
+    const currentScale = this.world?.scale.x ?? 1;
+    if (currentScale > 0) {
+      // Keep car markers easily visible and readable across all zoom levels and screen sizes.
+      const markerScale = Math.max(0.6, Math.min(2.5, 0.9 / currentScale));
+      this.cars.forEach((car) => {
+        car.setScale(markerScale);
+        car.tick();
+      });
+    } else {
+      this.cars.forEach((car) => car.tick());
+    }
 
     let followedPos: { x: number; y: number } | null = null;
     if (this.camera.mode === "follow" && this.camera.followAbbr) {
@@ -99,6 +115,8 @@ export class PixiReplayEngine {
 
   destroy(): void {
     document.removeEventListener("visibilitychange", this.onVisibilityChange);
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.app?.ticker.remove(this.onTick);
     this.camera?.destroy();
     this.cars.forEach((car) => car.destroy());

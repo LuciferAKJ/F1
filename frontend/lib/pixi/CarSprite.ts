@@ -1,7 +1,7 @@
 import { Container, Graphics, Text } from "pixi.js";
 import type { DriverFrame } from "@/types/replay";
 
-const RADIUS = 10;
+const RADIUS = 13;
 const POSITION_LERP = 0.35; // smoothing between successive target positions
 const ROTATION_LERP = 0.25;
 
@@ -61,7 +61,13 @@ export class CarSprite {
 
     this.label = new Text({
       text: abbr,
-      style: { fontFamily: "Arial", fontSize: 11, fontWeight: "bold", fill: 0xffffff },
+      style: {
+        fontFamily: "Arial",
+        fontSize: 11,
+        fontWeight: "bold",
+        fill: 0xffffff,
+        stroke: { color: 0x000000, width: 3 },
+      },
     });
     this.label.anchor.set(0.5, 1);
     this.label.position.set(0, -RADIUS - 4);
@@ -81,6 +87,10 @@ export class CarSprite {
     for (const [r, a] of [[RADIUS + 10, 0.08], [RADIUS + 6, 0.16], [RADIUS + 3, 0.28]] as const) {
       this.glow.circle(0, 0, r).fill({ color: colorNum, alpha: a });
     }
+  }
+
+  setScale(scale: number): void {
+    this.container.scale.set(scale);
   }
 
   setSelected(selected: boolean): void {

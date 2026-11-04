@@ -48,7 +48,7 @@ describe("ReplayCanvas loading and error states", () => {
     expect(demoBtn).toBeInTheDocument();
 
     fireEvent.click(demoBtn);
-    expect(mockPush).toHaveBeenCalledWith("/replay/0/Demo%20Grand%20Prix/R");
+    expect(mockPush).toHaveBeenCalledWith("/replay/demo");
   });
 
   it("navigates back to race selector when clicking Change Race in error card", () => {

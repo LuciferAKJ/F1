@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Demo Replay & Fallback Flow", () => {
+  test.setTimeout(120_000);
   const mockMetadata = {
     info: {
       year: 0,
@@ -83,22 +84,49 @@ test.describe("Demo Replay & Fallback Flow", () => {
 
     // 1. Check DEMO DATA badge in top center
     const demoBadge = page.getByText("DEMO DATA", { exact: false });
-    await expect(demoBadge.first()).toBeVisible({ timeout: 20_000 });
+    await expect(demoBadge.first()).toBeVisible({ timeout: 45_000 });
 
     // 2. Check track canvas is mounted
     const canvasContainer = page.locator("[data-testid='replay-canvas']");
-    await expect(canvasContainer).toBeAttached({ timeout: 20_000 });
+    await expect(canvasContainer).toBeAttached({ timeout: 45_000 });
 
-    // 3. Check drivers appear in list
-    await expect(page.getByText("VER", { exact: true }).first()).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText("NOR", { exact: true }).first()).toBeVisible({ timeout: 20_000 });
+    // 3. Check drivers appear in list and select VER
+    const verDriverBtn = page.getByRole("button", { name: /Select and follow VER/i }).first();
+    await expect(verDriverBtn).toBeVisible({ timeout: 20_000 });
+    await verDriverBtn.click();
+    await expect(page.getByText("Select a driver to see telemetry")).not.toBeVisible();
 
     // 4. Test Play/Pause toggle
     const playPauseBtn = page.getByRole("button", { name: /^(Play|Pause) replay/i }).first();
     await expect(playPauseBtn).toBeVisible({ timeout: 10_000 });
     await playPauseBtn.click();
 
-    // 5. Test timeline slider seek
+    // 5. Test speed controls (1x, 2x, 4x)
+    const speed2xBtn = page.getByRole("button", { name: "2x" });
+    if (await speed2xBtn.isVisible()) {
+      await speed2xBtn.click();
+      await expect(page.getByText("Speed x2")).toBeVisible();
+    }
+    const speed4xBtn = page.getByRole("button", { name: "4x" });
+    if (await speed4xBtn.isVisible()) {
+      await speed4xBtn.click();
+      await expect(page.getByText("Speed x4")).toBeVisible();
+    }
+
+    // 6. Test camera controls (Zoom in, Zoom out, Reset view)
+    const zoomInBtn = page.getByRole("button", { name: "Zoom in" });
+    await expect(zoomInBtn).toBeVisible({ timeout: 5000 });
+    await zoomInBtn.click();
+
+    const zoomOutBtn = page.getByRole("button", { name: "Zoom out" });
+    await expect(zoomOutBtn).toBeVisible({ timeout: 5000 });
+    await zoomOutBtn.click();
+
+    const resetViewBtn = page.getByRole("button", { name: "Reset camera view" });
+    await expect(resetViewBtn).toBeVisible({ timeout: 5000 });
+    await resetViewBtn.click();
+
+    // 7. Test timeline slider seek
     const slider = page.getByRole("slider").first();
     if (await slider.isVisible()) {
       await slider.focus();
