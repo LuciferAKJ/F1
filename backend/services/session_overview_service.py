@@ -1,6 +1,7 @@
 import logging
 
 from models.schemas import CircuitData, DriverMeta, SessionInfo
+from telemetry.exceptions import TelemetryDataUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -11,11 +12,18 @@ SESSION_NAMES = {
 
 
 def build_session_overview(session, year: int, event: str, session_type: str) -> tuple[SessionInfo, list[DriverMeta], CircuitData]:
+    has_laps = hasattr(session, "_laps") and session._laps is not None and not session._laps.empty
+    if not has_laps:
+        raise TelemetryDataUnavailableError(
+            f"Lap timing data unavailable for {year} {event} {session_type}. "
+            "Upstream live-timing archive is restricted or session timing has not been recorded."
+        )
+
     drivers: list[DriverMeta] = []
     circuit_x: list[float] = []
     circuit_y: list[float] = []
 
-    for drv in session.drivers:
+    for drv in getattr(session, "drivers", []):
         try:
             info = session.get_driver(drv)
             abbr = info["Abbreviation"]
@@ -25,12 +33,15 @@ def build_session_overview(session, year: int, event: str, session_type: str) ->
                 team_color=f"#{info.get('TeamColor', 'FFFFFF')}",
                 driver_number=str(drv),
             ))
-            if not circuit_x:
+            if not circuit_x and has_laps:
                 laps = session.laps.pick_drivers(abbr)
                 if not laps.empty:
-                    tel = laps.pick_fastest().get_telemetry()
-                    circuit_x = tel["X"].tolist()
-                    circuit_y = tel["Y"].tolist()
+                    fastest = laps.pick_fastest()
+                    if fastest is not None and not fastest.empty:
+                        tel = fastest.get_telemetry()
+                        if tel is not None and not tel.empty and "X" in tel.columns and "Y" in tel.columns:
+                            circuit_x = tel["X"].dropna().tolist()
+                            circuit_y = tel["Y"].dropna().tolist()
         except Exception as exc:
             logger.warning("Skipping driver %s: %s", drv, exc)
 
@@ -40,10 +51,17 @@ def build_session_overview(session, year: int, event: str, session_type: str) ->
         min_y=min(circuit_y) if circuit_y else 0.0, max_y=max(circuit_y) if circuit_y else 0.0,
     )
 
-    total_laps = int(session.laps["LapNumber"].max()) if not session.laps.empty else None
+    total_laps = None
+    if has_laps:
+        try:
+            total_laps = int(session._laps["LapNumber"].max()) if not session._laps.empty else None
+        except Exception:
+            total_laps = None
+
     info = SessionInfo(
         year=year, event=event, session_type=session_type,
         session_name=SESSION_NAMES.get(session_type, session_type),
         total_laps=total_laps,
+        is_demo=False,
     )
     return info, drivers, circuit

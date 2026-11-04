@@ -6,6 +6,8 @@ import type { SelectedRace } from "@/store/replayStore";
 
 export function useReplayMetadata(race: SelectedRace | null) {
   const setMetadata = useReplayStore((s) => s.setMetadata);
+  const setMetadataError = useReplayStore((s) => s.setMetadataError);
+  const setIsMetadataLoading = useReplayStore((s) => s.setIsMetadataLoading);
 
   const query = useQuery({
     queryKey: ["replay-metadata", race?.year, race?.event, race?.sessionType],
@@ -15,11 +17,30 @@ export function useReplayMetadata(race: SelectedRace | null) {
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,
+    retry: false,
   });
 
   useEffect(() => {
-    setMetadata(query.data ?? null);
-  }, [query.data, setMetadata]);
+    setIsMetadataLoading(query.isLoading);
+    if (query.isError) {
+      setMetadata(null);
+      setMetadataError(query.error instanceof Error ? query.error.message : String(query.error));
+    } else if (query.data) {
+      setMetadata(query.data);
+      setMetadataError(null);
+    } else if (query.isLoading) {
+      setMetadata(null);
+      setMetadataError(null);
+    }
+  }, [
+    query.data,
+    query.isError,
+    query.isLoading,
+    query.error,
+    setMetadata,
+    setMetadataError,
+    setIsMetadataLoading,
+  ]);
 
   return query;
 }

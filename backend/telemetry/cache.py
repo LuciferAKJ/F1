@@ -3,6 +3,7 @@ FastF1 loading + interpolation entirely.
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import pickle
@@ -55,13 +56,44 @@ def _cache_path(year: int, event: str, session_type: str) -> str:
 
 def load_cached_session(year: int, event: str, session_type: str) -> ProcessedSession | None:
     """Load a full ProcessedSession from disk cache if present."""
-    path = _cache_path(year, event, session_type)
-    if not os.path.exists(path):
+    canon_year, canon_event, canon_session = canonical_session_key(year, event, session_type)
+    safe_event = canon_event.replace(" ", "_").replace("/", "_")
+
+    candidate_names = [f"{canon_year}_{safe_event}_{canon_session}.pkl"]
+    if canon_session == "R":
+        candidate_names.append(f"{canon_year}_{safe_event}_Race.pkl")
+    elif canon_session == "Q":
+        candidate_names.append(f"{canon_year}_{safe_event}_Qualifying.pkl")
+    elif canon_session == "S":
+        candidate_names.append(f"{canon_year}_{safe_event}_Sprint.pkl")
+
+    search_dirs = [_get_cache_dir()]
+    for fallback_root in ["./assets/cache/replay", "./backend/assets/cache/replay", "../assets/cache/replay"]:
+        abs_fallback = os.path.abspath(fallback_root)
+        if abs_fallback not in search_dirs and os.path.isdir(abs_fallback):
+            search_dirs.append(abs_fallback)
+
+    path = None
+    for d in search_dirs:
+        for name in candidate_names:
+            candidate_path = os.path.join(d, name)
+            if os.path.exists(candidate_path):
+                path = candidate_path
+                break
+        if path:
+            break
+
+    if not path or not os.path.exists(path):
         return None
     try:
         with open(path, "rb") as f:
             data = pickle.load(f)
         if isinstance(data, ProcessedSession):
+            if not data.circuit.x or not data.replay_data.frames:
+                logger.warning("Found corrupted or empty ProcessedSession in disk cache at %s. Discarding.", path)
+                with contextlib.suppress(OSError):
+                    os.remove(path)
+                return None
             logger.info("Loaded cached ProcessedSession from %s", path)
             return data
         elif isinstance(data, ReplayData):

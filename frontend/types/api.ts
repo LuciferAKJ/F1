@@ -15,6 +15,7 @@ export interface SessionInfoDTO {
   sessionType: string;
   sessionName: string;
   totalLaps: number | null;
+  isDemo?: boolean;
 }
 
 export interface DriverMetaDTO {
@@ -41,6 +42,7 @@ export interface ReplayMetadataDTO {
   duration: number;
   frameInterval: number;
   frameCount: number;
+  isDemo?: boolean;
 }
 
 export interface ReplayResponseDTO {
@@ -49,6 +51,7 @@ export interface ReplayResponseDTO {
   circuit: CircuitDataDTO;
   frames: RawReplayFrame[];
   raceDuration: number;
+  isDemo?: boolean;
 }
 
 export interface ReplayFrameResponseDTO {

@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Path
 
 from models.schemas import SeasonEvent, SessionDetailResponse
 from services import fastf1_service
+from telemetry.exceptions import TelemetryDataUnavailableError
 from telemetry.pipeline import get_processed_session
 
 logger = logging.getLogger(__name__)
@@ -12,7 +13,18 @@ router = APIRouter()
 
 
 @router.get("/{year}/events", response_model=list[SeasonEvent])
-def list_events(year: int = Path(..., ge=1950, le=2050, description="Championship season year")) -> list[SeasonEvent]:
+def list_events(year: int = Path(..., ge=0, le=2050, description="Championship season year (0 for demo)")) -> list[SeasonEvent]:
+    if year == 0:
+        return [
+            SeasonEvent(
+                round_number=0,
+                event_name="Demo Grand Prix",
+                country="Demo",
+                location="Virtual Circuit",
+                event_date="2024-03-02",
+            )
+        ]
+
     try:
         schedule = fastf1_service.get_event_schedule(year)
     except Exception as exc:
@@ -32,12 +44,16 @@ def list_events(year: int = Path(..., ge=1950, le=2050, description="Championshi
 
 @router.get("/{year}/{event}/{session_type}", response_model=SessionDetailResponse)
 async def get_session_detail(
-    year: int = Path(..., ge=1950, le=2050, description="Championship season year"),
+    year: int = Path(..., ge=0, le=2050, description="Championship season year (0 for demo)"),
     event: str = Path(..., min_length=1, max_length=100),
     session_type: str = Path(..., min_length=1, max_length=10),
 ) -> SessionDetailResponse:
     try:
         proc = await get_processed_session(year, event, session_type)
+    except TelemetryDataUnavailableError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Failed to load session: {exc}") from exc
 

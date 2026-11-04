@@ -8,6 +8,8 @@ __pycache__
 *.pyo
 assets/cache/*
 !assets/cache/.gitkeep
+backend/assets/cache/*
+!backend/assets/cache/.gitkeep
 dist
 build
 coverage

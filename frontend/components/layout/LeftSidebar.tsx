@@ -4,13 +4,24 @@ import { motion } from "framer-motion";
 import { Crosshair, CloudRain, Wind, Droplets, Thermometer, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useReplayStore } from "@/store/replayStore";
 import { usePreferences } from "@/hooks/usePreferences";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 function DriverList() {
   const metadata = useReplayStore((s) => s.metadata);
+  const selectedRace = useReplayStore((s) => s.selectedRace);
   const selectedDriver = useReplayStore((s) => s.selectedDriver);
   const setSelectedDriver = useReplayStore((s) => s.setSelectedDriver);
   const pixiControls = useReplayStore((s) => s.pixiControls);
+
+  const pathname = usePathname();
+  const isDemo = Boolean(
+    pathname?.includes("/replay/demo") ||
+    metadata?.isDemo ||
+    metadata?.info?.isDemo ||
+    selectedRace?.year === 0 ||
+    selectedRace?.event?.toLowerCase().includes("demo")
+  );
 
   const drivers = metadata?.drivers ?? [];
 
@@ -21,7 +32,18 @@ function DriverList() {
 
   return (
     <div className="flex flex-col rounded-xl border border-border bg-panel p-3">
-      <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">Drivers</h3>
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="text-xs font-bold uppercase tracking-wide text-muted">Drivers</h3>
+        {isDemo ? (
+          <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-amber-400 border border-amber-500/30">
+            DEMO
+          </span>
+        ) : (
+          <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-emerald-400 border border-emerald-500/30">
+            REAL
+          </span>
+        )}
+      </div>
       <div className="flex max-h-72 flex-col gap-1 overflow-y-auto">
         {drivers.length === 0 && <p className="text-xs text-muted">Loading drivers…</p>}
         {drivers.map((d) => (

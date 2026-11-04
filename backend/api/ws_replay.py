@@ -57,7 +57,12 @@ async def ws_replay(websocket: WebSocket, year: int, event: str, session_type: s
         proc = await get_processed_session(year, event, session_type)
         replay_data = proc.replay_data
     except Exception as exc:
-        await websocket.send_json({"type": "error", "message": f"Failed to load replay: {exc}"})
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Failed to load replay: {exc}",
+            "code": "TELEMETRY_UNAVAILABLE",
+            "demoAvailable": True,
+        })
         await websocket.close()
         return
 

@@ -23,6 +23,8 @@ interface WsControls {
 interface ReplayState {
   selectedRace: SelectedRace | null;
   metadata: ReplayMetadataDTO | null;
+  metadataError: string | null;
+  isMetadataLoading: boolean;
   frames: RawReplayFrame[]; // frames received so far (streamed or bulk-loaded)
   currentFrame: RawReplayFrame | null;
   currentTimestamp: number;
@@ -35,6 +37,8 @@ interface ReplayState {
 
   setSelectedRace: (race: SelectedRace | null) => void;
   setMetadata: (metadata: ReplayMetadataDTO | null) => void;
+  setMetadataError: (error: string | null) => void;
+  setIsMetadataLoading: (loading: boolean) => void;
   setFrames: (frames: RawReplayFrame[]) => void;
   pushFrame: (frame: RawReplayFrame) => void;
   setCurrentFrame: (frame: RawReplayFrame | null) => void;
@@ -52,6 +56,8 @@ interface ReplayState {
 const initialState = {
   selectedRace: null,
   metadata: null,
+  metadataError: null,
+  isMetadataLoading: false,
   frames: [] as RawReplayFrame[],
   currentFrame: null,
   currentTimestamp: 0,
@@ -67,8 +73,28 @@ export const useReplayStore = create<ReplayState>((set) => ({
   ...initialState,
 
   setSelectedRace: (race) =>
-    set((state) => ({ ...initialState, pixiControls: state.pixiControls, wsControls: state.wsControls, selectedRace: race })),
-  setMetadata: (metadata) => set({ metadata }),
+    set((state) => {
+      const isSameRace =
+        state.selectedRace?.year === race?.year &&
+        state.selectedRace?.event === race?.event &&
+        state.selectedRace?.sessionType === race?.sessionType;
+      if (isSameRace) {
+        return state;
+      }
+      return {
+        ...state,
+        selectedRace: race,
+        frames: [],
+        currentFrame: null,
+        currentTimestamp: 0,
+        currentLap: 1,
+        playing: false,
+        selectedDriver: null,
+      };
+    }),
+  setMetadata: (metadata) => set((s) => ({ metadata, metadataError: metadata ? null : s.metadataError })),
+  setMetadataError: (error) => set({ metadataError: error }),
+  setIsMetadataLoading: (loading) => set({ isMetadataLoading: loading }),
   setFrames: (frames) => set({ frames }),
   pushFrame: (frame) =>
     set((state) => ({

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Flag } from "lucide-react";
+import { Flag, Play } from "lucide-react";
 import { useSeasonEvents } from "@/hooks/useSeasonEvents";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,6 +45,28 @@ export default function RaceSelectorPage() {
         <div className="mb-6 flex items-center gap-2">
           <Flag className="h-6 w-6 text-accent" aria-hidden="true" />
           <h1 className="text-xl font-bold">F1 Race Replay</h1>
+        </div>
+
+        <div className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-1.5 font-bold text-amber-400">
+                <Play className="h-3.5 w-3.5 fill-amber-400" />
+                <span>Instant Demo Replay</span>
+              </div>
+              <p className="mt-1 text-muted text-[11px] leading-relaxed">
+                Test the full interactive replay platform immediately with local sample telemetry.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-amber-500/40 text-amber-300 hover:bg-amber-500/20 shrink-0 font-semibold text-xs"
+              onClick={() => router.push("/replay/0/Demo%20Grand%20Prix/R")}
+            >
+              Try Demo
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-4">

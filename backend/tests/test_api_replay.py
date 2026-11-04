@@ -1,7 +1,7 @@
 """Integration tests for the /api/replay routes."""
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from telemetry.models import ProcessedSession
 
@@ -47,11 +47,12 @@ def test_no_duplicate_fastf1_loads_across_endpoints(app_client, sample_processed
          patch("telemetry.pipeline.load_cached_session", return_value=None), \
          patch("telemetry.pipeline.save_cached_session"), \
          patch("telemetry.pipeline.build_session_overview", return_value=(sample_processed_session.info, sample_processed_session.drivers, sample_processed_session.circuit)), \
-         patch("telemetry.pipeline.load_driver_raw_telemetry", return_value={}), \
+         patch("telemetry.pipeline.load_driver_raw_telemetry", return_value={"VER": MagicMock()}), \
          patch("telemetry.pipeline.build_replay_frames", return_value=sample_processed_session.replay_data):
 
         mock_session = mock_get_session.return_value
-        mock_session.drivers = []
+        mock_session.drivers = ["1"]
+        mock_session.get_driver.return_value = {"Abbreviation": "VER"}
 
         # Request 1: metadata
         resp1 = app_client.get("/api/replay/2026/Monaco/R/metadata")

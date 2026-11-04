@@ -10,7 +10,9 @@ frontend/.env.local
 backend/__pycache__/
 backend/**/__pycache__/
 backend/assets/cache/
-assets/
+!backend/assets/demo/
+!backend/assets/demo/**
+/assets/
 backend/.env
 *.pyc
 

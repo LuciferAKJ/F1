@@ -13,6 +13,8 @@ from config import get_settings
 from services import fastf1_service
 from services.session_overview_service import build_session_overview
 from telemetry.cache import canonical_session_key, load_cached_session, save_cached_session
+from telemetry.demo_data import get_demo_session, is_demo_session
+from telemetry.exceptions import TelemetryDataUnavailableError
 from telemetry.loader import load_driver_raw_telemetry
 from telemetry.models import ProcessedSession, ReplayData
 from telemetry.processor import build_replay_frames
@@ -94,6 +96,9 @@ def _cache_put(key: tuple[int, str, str], session_data: ProcessedSession) -> Non
 
 def _process_session_sync(year: int, event: str, session_type: str) -> ProcessedSession:
     """Internal synchronous worker: loads FastF1, processes, caches to disk, and frees memory."""
+    if is_demo_session(year, event, session_type):
+        return get_demo_session()
+
     year, event, session_type = canonical_session_key(year, event, session_type)
     key = (year, event, session_type)
 
@@ -135,14 +140,30 @@ def _process_session_sync(year: int, event: str, session_type: str) -> Processed
 
         session = fastf1_service.get_session(year, event, session_type)
         info, drivers, circuit = build_session_overview(session, year, event, session_type)
+
+        if not circuit.x or not circuit.y:
+            raise TelemetryDataUnavailableError(
+                f"No circuit track coordinates could be derived for {year} {event} {session_type}."
+            )
+
         driver_abbrs = [session.get_driver(d)["Abbreviation"] for d in session.drivers]
         raw = load_driver_raw_telemetry(session, driver_abbrs)
 
         # Release raw session reference before frame building
         del session
 
+        if not raw:
+            raise TelemetryDataUnavailableError(
+                f"No car telemetry or position data available for {year} {event} {session_type}."
+            )
+
         replay_data = build_replay_frames(raw)
         del raw
+
+        if not replay_data.frames:
+            raise TelemetryDataUnavailableError(
+                f"No synchronized replay frames could be generated for {year} {event} {session_type}."
+            )
 
         processed = ProcessedSession(
             info=info,
@@ -161,6 +182,9 @@ def _process_session_sync(year: int, event: str, session_type: str) -> Processed
 
 async def get_processed_session(year: int, event: str, session_type: str) -> ProcessedSession:
     """Async single-flight entrypoint for obtaining a ProcessedSession."""
+    if is_demo_session(year, event, session_type):
+        return get_demo_session()
+
     year, event, session_type = canonical_session_key(year, event, session_type)
     key = (year, event, session_type)
 

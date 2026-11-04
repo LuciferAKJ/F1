@@ -1,6 +1,7 @@
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
-fastf1>=3.3.0
+fastf1>=3.9.0
+platformdirs>=4.0.0
 pandas>=2.2.0
 numpy>=1.26.0
 scipy>=1.13.0

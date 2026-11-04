@@ -191,14 +191,20 @@ def test_per_session_locking_sync():
         )
 
     mock_session = MagicMock()
-    mock_session.drivers = []
+    mock_session.drivers = ["1"]
+    mock_session.get_driver.return_value = {"Abbreviation": "VER"}
+    mock_replay_data = ReplayData(
+        frames=[ReplayFrame(0.0, 1, [DriverFrame("VER", 0.0, 0.0, 100.0, 3, 0.5, False, 8000.0, 0, "M", 1, 1, 1)])],
+        min_time=0.0,
+        max_time=1.0,
+    )
 
     with patch("backend.telemetry.pipeline.load_cached_session", return_value=None), \
          patch("backend.telemetry.pipeline.save_cached_session"), \
-         patch("backend.services.fastf1_service.get_session", return_value=mock_session), \
+         patch("backend.telemetry.pipeline.fastf1_service.get_session", return_value=mock_session), \
          patch("backend.telemetry.pipeline.build_session_overview", side_effect=mock_build_session), \
-         patch("backend.telemetry.pipeline.load_driver_raw_telemetry", return_value={}), \
-         patch("backend.telemetry.pipeline.build_replay_frames", return_value=ReplayData([], 0.0, 0.0)):
+         patch("backend.telemetry.pipeline.load_driver_raw_telemetry", return_value={"VER": MagicMock()}), \
+         patch("backend.telemetry.pipeline.build_replay_frames", return_value=mock_replay_data):
 
         threads = []
         results = [None, None, None]
@@ -294,7 +300,10 @@ def test_real_race_rss_diagnostic():
             return 0.0
 
     rss_before = get_working_set_mb()
-    session_data = pipeline._process_session_sync(2026, "Azerbaijan", "Race")
+    try:
+        session_data = pipeline._process_session_sync(2026, "Azerbaijan", "Race")
+    except Exception as exc:
+        pytest.skip(f"Live race data unavailable for diagnostic RSS test: {exc}")
     rss_after = get_working_set_mb()
     if rss_after > 0:
         print(f"\n[DIAGNOSTIC] RSS before session load: {rss_before:.1f} MB, after session load: {rss_after:.1f} MB")

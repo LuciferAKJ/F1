@@ -22,6 +22,7 @@ class SessionInfo(CamelModel):
     session_type: str
     session_name: str
     total_laps: int | None = None
+    is_demo: bool = False
 
 
 class DriverMeta(CamelModel):
@@ -76,6 +77,7 @@ class ReplayResponse(CamelModel):
     circuit: CircuitData
     frames: list[ReplayFrameOut]
     race_duration: float
+    is_demo: bool = False
 
 
 class ReplayMetadataResponse(CamelModel):
@@ -86,6 +88,7 @@ class ReplayMetadataResponse(CamelModel):
     duration: float
     frame_interval: float
     frame_count: int
+    is_demo: bool = False
 
 
 class ReplayFrameResponse(CamelModel):
