@@ -4,6 +4,23 @@ import { CarSprite } from "./CarSprite";
 import { CameraController } from "./CameraController";
 import type { CircuitData, DriverMeta, ReplayFrame } from "@/types/replay";
 
+export interface LabelSlot {
+  dx: number;
+  dy: number;
+}
+
+// Ordered candidate slots for driver abbreviation label positioning
+export const CANDIDATE_LABEL_SLOTS: readonly LabelSlot[] = [
+  { dx: 0, dy: -23 },   // 0. Primary: Directly above car
+  { dx: 0, dy: 23 },    // 1. Secondary: Directly below car
+  { dx: 28, dy: -4 },   // 2. Lateral Right
+  { dx: -28, dy: -4 },  // 3. Lateral Left
+  { dx: 28, dy: 16 },   // 4. Diagonal Bottom-Right
+  { dx: -28, dy: 16 },  // 5. Diagonal Bottom-Left
+  { dx: 24, dy: -26 },  // 6. Diagonal Top-Right
+  { dx: -24, dy: -26 }, // 7. Diagonal Top-Left
+];
+
 /**
  * Owns the PIXI.Application lifecycle and renders the live race replay.
  * External state (current ReplayFrame) is pushed in via `setFrame()`;
@@ -15,9 +32,14 @@ export class PixiReplayEngine {
   private trackLayer: TrackLayer | null = null;
   private camera: CameraController | null = null;
   private cars = new Map<string, CarSprite>();
+  private carsList: CarSprite[] = [];
   private ready = false;
   private selectedAbbr: string | null = null;
   private resizeObserver: ResizeObserver | null = null;
+
+  // Pre-allocated coordinates cache to prevent per-frame GC allocations
+  private placedLabels: { x: number; y: number }[] = [];
+
   private onVisibilityChange = (): void => {
     if (!this.app) return;
     if (document.hidden) this.app.ticker.stop();
@@ -42,9 +64,14 @@ export class PixiReplayEngine {
     this.trackLayer = new TrackLayer(circuit);
     world.addChild(this.trackLayer.container);
 
+    this.carsList = [];
+    this.placedLabels = [];
+
     for (const driver of drivers) {
       const car = new CarSprite(driver.abbreviation, driver.teamColor, driver.driverNumber);
       this.cars.set(driver.abbreviation, car);
+      this.carsList.push(car);
+      this.placedLabels.push({ x: 0, y: 0 });
       world.addChild(car.container);
     }
 
@@ -72,13 +99,18 @@ export class PixiReplayEngine {
     if (currentScale > 0) {
       // Keep car markers easily visible and readable across all zoom levels and screen sizes.
       const markerScale = Math.max(0.6, Math.min(2.5, 0.9 / currentScale));
-      this.cars.forEach((car) => {
-        car.setScale(markerScale);
-        car.tick();
-      });
+      for (let i = 0; i < this.carsList.length; i++) {
+        this.carsList[i].setScale(markerScale);
+        this.carsList[i].tick();
+      }
     } else {
-      this.cars.forEach((car) => car.tick());
+      for (let i = 0; i < this.carsList.length; i++) {
+        this.carsList[i].tick();
+      }
     }
+
+    // Dynamic collision-aware multi-slot label deconfliction
+    this.deconflictLabels();
 
     let followedPos: { x: number; y: number } | null = null;
     if (this.camera.mode === "follow" && this.camera.followAbbr) {
@@ -87,6 +119,107 @@ export class PixiReplayEngine {
     }
     this.camera.update(followedPos);
   };
+
+  /**
+   * Deterministic, multi-slot collision avoidance for driver labels.
+   * Prioritizes the selected driver (always receives its primary top slot).
+   * For dense packs of 3+ cars, evaluates candidate slots around each car's perimeter
+   * and picks the first slot free of label-on-label and label-on-car overlap.
+   */
+  deconflictLabels(): void {
+    const totalCars = this.carsList.length;
+    if (totalCars === 0) return;
+
+    let placedCount = 0;
+
+    // 1. If a driver is selected, position it first with highest priority
+    let selectedCar: CarSprite | null = null;
+    if (this.selectedAbbr) {
+      selectedCar = this.cars.get(this.selectedAbbr) ?? null;
+      if (selectedCar) {
+        // Selected car always takes candidate slot 0 (primary top)
+        const primarySlot = CANDIDATE_LABEL_SLOTS[0];
+        selectedCar.setLabelOffset(primarySlot.dx, primarySlot.dy);
+        this.placedLabels[placedCount].x = selectedCar.container.position.x + primarySlot.dx;
+        this.placedLabels[placedCount].y = selectedCar.container.position.y + primarySlot.dy;
+        placedCount++;
+      }
+    }
+
+    // 2. Position all remaining unselected cars
+    const LABEL_OVERLAP_W = 28;
+    const LABEL_OVERLAP_H = 15;
+    const CAR_OVERLAP_W = 18;
+    const CAR_OVERLAP_H = 14;
+
+    for (let i = 0; i < totalCars; i++) {
+      const car = this.carsList[i];
+      if (car === selectedCar) continue;
+
+      const posX = car.container.position.x;
+      const posY = car.container.position.y;
+
+      let chosenSlot = CANDIDATE_LABEL_SLOTS[0];
+      let bestPenalty = Infinity;
+
+      for (let s = 0; s < CANDIDATE_LABEL_SLOTS.length; s++) {
+        const slot = CANDIDATE_LABEL_SLOTS[s];
+        const candX = posX + slot.dx;
+        const candY = posY + slot.dy;
+
+        let hasOverlap = false;
+        let penalty = 0;
+
+        // Check against previously placed labels
+        for (let p = 0; p < placedCount; p++) {
+          const plX = this.placedLabels[p].x;
+          const plY = this.placedLabels[p].y;
+          const dx = Math.abs(candX - plX);
+          const dy = Math.abs(candY - plY);
+
+          if (dx < LABEL_OVERLAP_W && dy < LABEL_OVERLAP_H) {
+            hasOverlap = true;
+            penalty += (LABEL_OVERLAP_W - dx) + (LABEL_OVERLAP_H - dy);
+            break;
+          }
+        }
+
+        // Check against other car circle centers so label doesn't cover another car
+        if (!hasOverlap) {
+          for (let j = 0; j < totalCars; j++) {
+            if (i === j) continue;
+            const otherCar = this.carsList[j];
+            const otherX = otherCar.container.position.x;
+            const otherY = otherCar.container.position.y;
+            const dx = Math.abs(candX - otherX);
+            const dy = Math.abs(candY - otherY);
+
+            if (dx < CAR_OVERLAP_W && dy < CAR_OVERLAP_H) {
+              hasOverlap = true;
+              penalty += (CAR_OVERLAP_W - dx) + (CAR_OVERLAP_H - dy);
+              break;
+            }
+          }
+        }
+
+        if (!hasOverlap) {
+          chosenSlot = slot;
+          break; // Found clean, non-conflicting slot
+        }
+
+        // Keep track of least-conflicting slot as fallback
+        if (penalty < bestPenalty) {
+          bestPenalty = penalty;
+          chosenSlot = slot;
+        }
+      }
+
+      car.setLabelOffset(chosenSlot.dx, chosenSlot.dy);
+      this.placedLabels[placedCount].x = posX + chosenSlot.dx;
+      this.placedLabels[placedCount].y = posY + chosenSlot.dy;
+      placedCount++;
+    }
+  }
 
   /** Push a new data frame from the replay/timeline hook — updates car targets. */
   setFrame(frame: ReplayFrame): void {
@@ -104,7 +237,24 @@ export class PixiReplayEngine {
   setSelectedDriver(abbr: string | null): void {
     if (this.selectedAbbr) this.cars.get(this.selectedAbbr)?.setSelected(false);
     this.selectedAbbr = abbr;
-    if (abbr) this.cars.get(abbr)?.setSelected(true);
+    if (abbr) {
+      const car = this.cars.get(abbr);
+      if (car) {
+        car.setSelected(true);
+        // Elevate selected driver to topmost z-order in world container
+        if (this.world) {
+          this.world.addChild(car.container);
+        }
+      }
+    }
+  }
+
+  getCar(abbr: string): CarSprite | undefined {
+    return this.cars.get(abbr);
+  }
+
+  getWorldContainer(): Container | null {
+    return this.world;
   }
 
   zoomIn(): void { this.camera?.zoomIn(); }
@@ -121,6 +271,8 @@ export class PixiReplayEngine {
     this.camera?.destroy();
     this.cars.forEach((car) => car.destroy());
     this.cars.clear();
+    this.carsList = [];
+    this.placedLabels = [];
     this.app?.destroy(true, { children: true });
     this.app = null;
     this.ready = false;
