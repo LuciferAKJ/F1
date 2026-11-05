@@ -1,14 +1,14 @@
 import { Container, Graphics, Text } from "pixi.js";
 import type { DriverFrame } from "@/types/replay";
 
-const RADIUS = 13;
+export const CAR_RADIUS = 13;
 const POSITION_LERP = 0.35; // smoothing between successive target positions
 const ROTATION_LERP = 0.25;
 
 /**
  * A single car: team-colored circle with a heading "nose", driver number inside,
- * driver abbreviation label above, and an optional glow ring when selected.
- * Position and rotation both ease toward their latest target each tick.
+ * driver abbreviation pill badge above/below/offset, and high-visibility selection reticle.
+ * Position and rotation ease toward their latest target each tick.
  */
 export class CarSprite {
   readonly container: Container;
@@ -17,17 +17,26 @@ export class CarSprite {
   private circle: Graphics;
   private nose: Graphics;
   private numberText: Text;
-  private label: Text;
+
+  private labelContainer: Container;
+  private labelPill: Graphics;
+  private labelText: Text;
 
   private targetX = 0;
   private targetY = 0;
   private targetRotation = 0;
   private initialized = false;
   private selected = false;
+  private baseScale = 1.0;
+  private colorNum: number;
+  private labelOffsetX = 0;
+  private labelOffsetY = -CAR_RADIUS - 10;
 
   constructor(readonly abbr: string, teamColorHex: string, driverNumber: string) {
     this.container = new Container();
+    this.colorNum = this.hexToNumber(teamColorHex);
 
+    // High-visibility selection reticle & halo
     this.glow = new Graphics();
     this.glow.visible = false;
     this.container.addChild(this.glow);
@@ -35,19 +44,17 @@ export class CarSprite {
     this.carGroup = new Container();
     this.container.addChild(this.carGroup);
 
-    const colorNum = this.hexToNumber(teamColorHex);
-
     this.circle = new Graphics()
-      .circle(0, 0, RADIUS)
-      .fill(colorNum)
+      .circle(0, 0, CAR_RADIUS)
+      .fill(this.colorNum)
       .stroke({ width: 1.5, color: 0x000000 });
     this.carGroup.addChild(this.circle);
 
     // Small forward-facing wedge to convey heading at a glance.
     this.nose = new Graphics()
-      .moveTo(RADIUS + 5, 0)
-      .lineTo(RADIUS - 2, -4)
-      .lineTo(RADIUS - 2, 4)
+      .moveTo(CAR_RADIUS + 5, 0)
+      .lineTo(CAR_RADIUS - 2, -4)
+      .lineTo(CAR_RADIUS - 2, 4)
       .closePath()
       .fill(0xffffff);
     this.carGroup.addChild(this.nose);
@@ -59,21 +66,28 @@ export class CarSprite {
     this.numberText.anchor.set(0.5);
     this.carGroup.addChild(this.numberText);
 
-    this.label = new Text({
+    // Label container with rounded pill badge background
+    this.labelContainer = new Container();
+    this.labelPill = new Graphics();
+    this.labelContainer.addChild(this.labelPill);
+
+    this.labelText = new Text({
       text: abbr,
       style: {
         fontFamily: "Arial",
-        fontSize: 11,
+        fontSize: 10,
         fontWeight: "bold",
         fill: 0xffffff,
-        stroke: { color: 0x000000, width: 3 },
       },
     });
-    this.label.anchor.set(0.5, 1);
-    this.label.position.set(0, -RADIUS - 4);
-    this.container.addChild(this.label);
+    this.labelText.anchor.set(0.5, 0.5);
+    this.labelContainer.addChild(this.labelText);
 
-    this.drawGlow(colorNum);
+    this.labelContainer.position.set(this.labelOffsetX, this.labelOffsetY);
+    this.container.addChild(this.labelContainer);
+
+    this.drawLabelPill(false);
+    this.drawGlow();
   }
 
   private hexToNumber(hex: string): number {
@@ -81,21 +95,80 @@ export class CarSprite {
     return parseInt(clean.length === 6 ? clean : "ffffff", 16);
   }
 
-  private drawGlow(colorNum: number): void {
+  private drawLabelPill(isSelected: boolean): void {
+    this.labelPill.clear();
+    const textWidth = Math.max(28, this.labelText.width + 8);
+    const height = 15;
+    const halfW = textWidth / 2;
+    const halfH = height / 2;
+
+    // Dark high-contrast rounded background with team or selected border
+    this.labelPill
+      .roundRect(-halfW, -halfH, textWidth, height, 3)
+      .fill({ color: 0x09090b, alpha: 0.9 })
+      .stroke({ width: isSelected ? 1.5 : 1.0, color: isSelected ? 0xfacc15 : this.colorNum });
+  }
+
+  private drawGlow(): void {
     this.glow.clear();
-    // Soft layered rings stand in for a blur/glow filter (keeps the engine dependency-free).
-    for (const [r, a] of [[RADIUS + 10, 0.08], [RADIUS + 6, 0.16], [RADIUS + 3, 0.28]] as const) {
-      this.glow.circle(0, 0, r).fill({ color: colorNum, alpha: a });
+    // High-visibility layered selection reticle
+    // 1. Outer soft aura
+    this.glow.circle(0, 0, CAR_RADIUS + 12).fill({ color: this.colorNum, alpha: 0.18 });
+    this.glow.circle(0, 0, CAR_RADIUS + 7).fill({ color: this.colorNum, alpha: 0.28 });
+    // 2. Crisp targeting ring
+    this.glow.circle(0, 0, CAR_RADIUS + 4).stroke({ width: 2.0, color: 0xffffff, alpha: 0.95 });
+    // 3. Four cardinal ticks for instant visual identification
+    const tickLen = 4;
+    const tickDist = CAR_RADIUS + 5;
+    this.glow
+      .moveTo(0, -tickDist).lineTo(0, -tickDist - tickLen)
+      .moveTo(0, tickDist).lineTo(0, tickDist + tickLen)
+      .moveTo(-tickDist, 0).lineTo(-tickDist - tickLen, 0)
+      .moveTo(tickDist, 0).lineTo(tickDist + tickLen, 0)
+      .stroke({ width: 2.0, color: 0xfacc15, alpha: 1.0 });
+  }
+
+  /** Set exact relative offset for driver label (used by multi-slot collision deconfliction). */
+  setLabelOffset(dx: number, dy: number): void {
+    if (this.labelOffsetX === dx && this.labelOffsetY === dy) return;
+    this.labelOffsetX = dx;
+    this.labelOffsetY = dy;
+    this.labelContainer.position.set(dx, dy);
+  }
+
+  /** Legacy helper for top/bottom placement. */
+  setLabelPlacement(placement: "top" | "bottom"): void {
+    if (placement === "top") {
+      this.setLabelOffset(0, -CAR_RADIUS - 10);
+    } else {
+      this.setLabelOffset(0, CAR_RADIUS + 10);
     }
   }
 
+  get labelOffset(): { x: number; y: number } {
+    return { x: this.labelOffsetX, y: this.labelOffsetY };
+  }
+
+  get isSelected(): boolean {
+    return this.selected;
+  }
+
+  get glowVisible(): boolean {
+    return this.glow.visible;
+  }
+
   setScale(scale: number): void {
-    this.container.scale.set(scale);
+    this.baseScale = scale;
+    const effectiveScale = this.selected ? scale * 1.25 : scale;
+    this.container.scale.set(effectiveScale);
   }
 
   setSelected(selected: boolean): void {
     this.selected = selected;
     this.glow.visible = selected;
+    this.drawLabelPill(selected);
+    const effectiveScale = selected ? this.baseScale * 1.25 : this.baseScale;
+    this.container.scale.set(effectiveScale);
   }
 
   /** Set the new target position (called once per data frame update); derives heading from movement. */
@@ -117,7 +190,11 @@ export class CarSprite {
   }
 
   updateTelemetry(frame: DriverFrame): void {
-    this.label.text = frame.pit ? `${this.abbr} P` : this.abbr;
+    const nextText = frame.pit ? `${this.abbr} P` : this.abbr;
+    if (this.labelText.text !== nextText) {
+      this.labelText.text = nextText;
+      this.drawLabelPill(this.selected);
+    }
   }
 
   /** Called every render tick (60 FPS) to smoothly ease position + rotation toward the latest target. */

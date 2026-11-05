@@ -11,7 +11,11 @@ import pytest
 from services import fastf1_service
 from services.session_overview_service import build_session_overview
 from telemetry import pipeline
-from telemetry.demo_data import get_demo_session, is_demo_session
+from telemetry.demo_data import (
+    _build_synthetic_demo_session,
+    get_demo_session,
+    is_demo_session,
+)
 from telemetry.exceptions import TelemetryDataUnavailableError
 from telemetry.models import ProcessedSession
 
@@ -47,8 +51,90 @@ def test_demo_session_structure():
     assert len(demo.drivers) >= 10
     assert len(demo.circuit.x) > 0
     assert len(demo.circuit.y) == len(demo.circuit.x)
-    assert len(demo.replay_data.frames) >= 60
-    assert demo.replay_data.max_time > 0.0
+    assert len(demo.replay_data.frames) >= 120
+    assert demo.replay_data.max_time == round(demo.replay_data.frames[-1].timestamp, 2)
+    assert demo.info.total_laps == 5
+
+    # Check lap and sector progression
+    laps_observed = set(f.lap for f in demo.replay_data.frames)
+    assert laps_observed == {1, 2, 3, 4, 5}
+
+    sectors_observed = set(d.sector for f in demo.replay_data.frames for d in f.drivers)
+    assert sectors_observed == {1, 2, 3}
+
+    # Verify positions: strictly 1..10 in every frame with no duplicates
+    for frame in demo.replay_data.frames:
+        positions = [d.position for d in frame.drivers]
+        assert sorted(positions) == list(range(1, len(demo.drivers) + 1))
+
+    # DRS codes are authentic (0 closed, 10/12/14 open)
+    drs_codes = set(d.drs for f in demo.replay_data.frames for d in f.drivers)
+    assert drs_codes.issubset({0, 10, 12, 14})
+    assert 12 in drs_codes
+
+    # Tyres have compound variety
+    tyres_observed = set(d.tyre for f in demo.replay_data.frames for d in f.drivers)
+    assert len(tyres_observed) >= 2
+
+
+def test_procedural_synthetic_demo_fallback():
+    """Verifies that _build_synthetic_demo_session satisfies the identical data contract."""
+    demo = _build_synthetic_demo_session()
+    assert isinstance(demo, ProcessedSession)
+    assert demo.info.is_demo is True
+    assert demo.info.total_laps == 5
+
+    # Check 10 drivers consistent with DEMO_DRIVERS
+    assert len(demo.drivers) == 10
+    driver_ids = [d.abbreviation for d in demo.drivers]
+    assert "VER" in driver_ids
+    assert "NOR" in driver_ids
+    assert "STR" in driver_ids
+
+    # Check circuit
+    assert len(demo.circuit.x) > 0
+    assert len(demo.circuit.x) == len(demo.circuit.y)
+    assert demo.circuit.min_x <= demo.circuit.max_x
+    assert demo.circuit.min_y <= demo.circuit.max_y
+
+    # Check 5 laps semantics and progression
+    laps_observed = set(f.lap for f in demo.replay_data.frames)
+    assert laps_observed == {1, 2, 3, 4, 5}
+
+    # Verify monotonic timestamps, frame intervals, and telemetry
+    prev_t = -0.5
+    for frame in demo.replay_data.frames:
+        assert frame.timestamp > prev_t
+        assert round(frame.timestamp - prev_t, 2) == 0.5
+        prev_t = frame.timestamp
+
+        # Positions must be strictly 1..10 without gaps or duplicates
+        positions = [d.position for d in frame.drivers]
+        assert sorted(positions) == list(range(1, 11))
+
+        # Every driver in frame must be in demo.drivers
+        frame_driver_ids = [d.driver_id for d in frame.drivers]
+        assert len(frame_driver_ids) == 10
+        assert set(frame_driver_ids) == set(driver_ids)
+
+        # Telemetry fields conform to schema
+        for d in frame.drivers:
+            assert 1 <= d.sector <= 3
+            assert 1 <= d.lap <= 5
+            assert d.speed >= 0
+            assert 1 <= d.gear <= 8
+            assert 0.0 <= d.throttle <= 100.0
+            assert isinstance(d.brake, bool)
+            assert d.rpm > 0
+            assert d.drs in (0, 10, 12, 14)
+            assert d.tyre in ("SOFT", "MEDIUM", "HARD")
+
+    # Sectors coverage
+    sectors_observed = set(d.sector for f in demo.replay_data.frames for d in f.drivers)
+    assert sectors_observed == {1, 2, 3}
+
+    # Duration agrees with max_time
+    assert demo.replay_data.max_time == round(demo.replay_data.frames[-1].timestamp, 2)
 
 
 def test_demo_fallback_via_api(app_client):

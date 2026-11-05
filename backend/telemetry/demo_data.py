@@ -27,8 +27,21 @@ DEMO_DRIVERS = [
     DriverMeta(abbreviation="RUS", team_name="Mercedes", team_color="#27F4D2", driver_number="63"),
     DriverMeta(abbreviation="PER", team_name="Red Bull Racing", team_color="#3671C6", driver_number="11"),
     DriverMeta(abbreviation="ALO", team_name="Aston Martin", team_color="#229971", driver_number="14"),
-    DriverMeta(abbreviation="TSU", team_name="RB", team_color="#6692FF", driver_number="22"),
+    DriverMeta(abbreviation="STR", team_name="Aston Martin", team_color="#229971", driver_number="18"),
 ]
+
+DEMO_TYRES = {
+    "VER": "MEDIUM",
+    "NOR": "MEDIUM",
+    "LEC": "SOFT",
+    "HAM": "MEDIUM",
+    "PIA": "SOFT",
+    "SAI": "HARD",
+    "RUS": "SOFT",
+    "PER": "MEDIUM",
+    "ALO": "HARD",
+    "STR": "MEDIUM",
+}
 
 
 def is_demo_session(year: int | str, event: str, session_type: str = "R") -> bool:
@@ -44,9 +57,9 @@ def is_demo_session(year: int | str, event: str, session_type: str = "R") -> boo
 
 
 def _build_synthetic_demo_session() -> ProcessedSession:
-    """Procedurally construct a complete, valid ProcessedSession if the pickle is unavailable."""
+    """Procedurally construct a complete, valid 5-lap ProcessedSession if the pickle is unavailable."""
     # Create smooth track coordinates (ellipse with variations)
-    num_pts = 200
+    num_pts = 300
     circuit_x: list[float] = []
     circuit_y: list[float] = []
     for i in range(num_pts):
@@ -64,54 +77,89 @@ def _build_synthetic_demo_session() -> ProcessedSession:
         max_y=max(circuit_y),
     )
 
+    total_laps = 5
     info = SessionInfo(
         year=2024,
         event="Demo Grand Prix",
         session_name="Demo Race (Sample Telemetry)",
         session_type="R",
-        total_laps=5,
+        total_laps=total_laps,
         is_demo=True,
     )
 
-    # 120 frames at 0.5s intervals (60s duration)
-    frames: list[ReplayFrame] = []
+    # 5 laps simulation including leader crossing finish line
     track_len = len(circuit_x)
+    frames_per_lap = 70
+    cooldown_frames = 8
+    total_frames = frames_per_lap * total_laps + cooldown_frames
+    frames: list[ReplayFrame] = []
 
-    for step in range(120):
+    for step in range(total_frames):
         t = round(step * 0.5, 2)
-        lap = 1 + (step // 60)
-        drivers_in_frame: list[DriverFrame] = []
+        leader_lap = min(total_laps, 1 + (step // frames_per_lap))
 
+        driver_states = []
         for rank, drv in enumerate(DEMO_DRIVERS):
-            offset_idx = int((step * 2 - rank * 4) % track_len)
-            x_pos = circuit_x[offset_idx]
-            y_pos = circuit_y[offset_idx]
-            speed = 280.0 + 30.0 * math.sin(step * 0.2 + rank)
-            gear = max(3, min(8, int(speed / 45.0)))
-            throttle = 100.0 if speed > 260.0 else 60.0
-            brake = speed < 240.0
-            rpm = 10500.0 + 1500.0 * (throttle / 100.0)
-            sector = 1 if offset_idx < track_len // 3 else (2 if offset_idx < 2 * track_len // 3 else 3)
+            abbr = drv.abbreviation
+            # Progress index along track
+            prog = (step * 4 - rank * 8)
+            curr_lap = max(1, min(total_laps, 1 + (prog // (track_len * 2))))
+            idx = int(prog % track_len)
+            x_pos = circuit_x[idx]
+            y_pos = circuit_y[idx]
 
+            speed = 260.0 + 40.0 * math.sin(step * 0.15 + rank * 0.5)
+            gear = max(2, min(8, int(speed / 42.0)))
+            throttle = 100.0 if speed > 250.0 else 50.0
+            brake = speed < 240.0
+            rpm = 9500.0 + 2000.0 * (speed / 320.0)
+
+            # DRS flap open (12) in straight sections with high speed, 0 otherwise
+            is_drs = (idx < track_len // 6 or idx > 5 * track_len // 6) and speed > 270.0
+            drs_val = 12 if is_drs else 0
+
+            sec = 1 if idx < track_len // 3 else (2 if idx < 2 * track_len // 3 else 3)
+
+            driver_states.append({
+                "drv": drv,
+                "prog": prog,
+                "x": float(x_pos),
+                "y": float(y_pos),
+                "speed": float(round(speed, 1)),
+                "gear": gear,
+                "throttle": float(round(throttle, 1)),
+                "brake": brake,
+                "rpm": float(round(rpm, 1)),
+                "drs": drs_val,
+                "tyre": DEMO_TYRES.get(abbr, "MEDIUM"),
+                "lap": curr_lap,
+                "sector": sec,
+            })
+
+        # Sort strictly by progress to determine rank
+        driver_states.sort(key=lambda s: s["prog"], reverse=True)
+
+        drivers_in_frame: list[DriverFrame] = []
+        for pos_idx, s in enumerate(driver_states):
             drivers_in_frame.append(
                 DriverFrame(
-                    driver_id=drv.abbreviation,
-                    x=float(x_pos),
-                    y=float(y_pos),
-                    speed=float(speed),
-                    gear=gear,
-                    throttle=float(throttle),
-                    brake=brake,
-                    rpm=float(rpm),
-                    drs=1 if rank > 0 and speed > 280.0 else 0,
-                    tyre="MEDIUM",
-                    lap=lap,
-                    sector=sector,
-                    position=rank + 1,
+                    driver_id=s["drv"].abbreviation,
+                    x=s["x"],
+                    y=s["y"],
+                    speed=s["speed"],
+                    gear=s["gear"],
+                    throttle=s["throttle"],
+                    brake=s["brake"],
+                    rpm=s["rpm"],
+                    drs=s["drs"],
+                    tyre=s["tyre"],
+                    lap=s["lap"],
+                    sector=s["sector"],
+                    position=pos_idx + 1,  # Strictly 1..10
                 )
             )
 
-        frames.append(ReplayFrame(timestamp=t, lap=lap, drivers=drivers_in_frame))
+        frames.append(ReplayFrame(timestamp=t, lap=leader_lap, drivers=drivers_in_frame))
 
     replay_data = ReplayData(
         frames=frames,
