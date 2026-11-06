@@ -11,6 +11,7 @@ function DriverList() {
   const metadata = useReplayStore((s) => s.metadata);
   const selectedRace = useReplayStore((s) => s.selectedRace);
   const selectedDriver = useReplayStore((s) => s.selectedDriver);
+  const followedDriver = useReplayStore((s) => s.followedDriver);
   const setSelectedDriver = useReplayStore((s) => s.setSelectedDriver);
   const pixiControls = useReplayStore((s) => s.pixiControls);
 
@@ -27,7 +28,21 @@ function DriverList() {
 
   const handleSelect = (abbr: string) => {
     setSelectedDriver(abbr);
-    pixiControls?.followDriver(abbr);
+    // If follow mode is currently active, update the followed driver to follow newly selected driver
+    if (followedDriver) {
+      pixiControls?.followDriver(abbr);
+    }
+  };
+
+  const handleToggleFollow = (e: React.MouseEvent, abbr: string) => {
+    e.stopPropagation();
+    if (followedDriver === abbr) {
+      pixiControls?.stopFollowing();
+      pixiControls?.resetView();
+    } else {
+      setSelectedDriver(abbr);
+      pixiControls?.followDriver(abbr);
+    }
   };
 
   return (
@@ -47,27 +62,43 @@ function DriverList() {
       <div className="flex max-h-72 flex-col gap-1 overflow-y-auto">
         {drivers.length === 0 && <p className="text-xs text-muted">Loading drivers…</p>}
         {drivers.map((d) => (
-          <button
+          <div
             key={d.abbreviation}
-            onClick={() => handleSelect(d.abbreviation)}
-            aria-pressed={selectedDriver === d.abbreviation}
-            aria-label={`Select and follow ${d.abbreviation}, ${d.teamName}`}
             className={cn(
-              "flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-black/40",
+              "group flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-black/40",
               selectedDriver === d.abbreviation && "bg-black/50 ring-1 ring-accent"
             )}
           >
-            <span className="flex items-center gap-2">
+            <button
+              onClick={() => handleSelect(d.abbreviation)}
+              aria-pressed={selectedDriver === d.abbreviation}
+              aria-label={`Select ${d.abbreviation}, ${d.teamName}`}
+              className="flex flex-1 items-center gap-2 overflow-hidden text-left"
+            >
               <span
-                className="h-2.5 w-2.5 rounded-full border border-black/40"
+                className="h-2.5 w-2.5 shrink-0 rounded-full border border-black/40"
                 style={{ backgroundColor: d.teamColor }}
                 aria-hidden="true"
               />
               <span className="font-semibold">{d.abbreviation}</span>
-              <span className="text-xs text-muted">{d.teamName}</span>
-            </span>
-            {selectedDriver === d.abbreviation && <Crosshair className="h-3.5 w-3.5 text-accent" aria-hidden="true" />}
-          </button>
+              <span className="truncate text-xs text-muted">{d.teamName}</span>
+            </button>
+            <button
+              onClick={(e) => handleToggleFollow(e, d.abbreviation)}
+              className={cn(
+                "rounded p-1 transition-colors hover:bg-white/10",
+                followedDriver === d.abbreviation
+                  ? "text-accent bg-accent/20"
+                  : selectedDriver === d.abbreviation
+                  ? "text-muted hover:text-white"
+                  : "opacity-0 group-hover:opacity-100 text-muted hover:text-white"
+              )}
+              title={followedDriver === d.abbreviation ? `Following ${d.abbreviation} — click to return to overview` : `Follow ${d.abbreviation}`}
+              aria-label={followedDriver === d.abbreviation ? `Stop following ${d.abbreviation}` : `Follow ${d.abbreviation}`}
+            >
+              <Crosshair className="h-3.5 w-3.5" />
+            </button>
+          </div>
         ))}
       </div>
     </div>

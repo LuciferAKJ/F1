@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { ZoomIn, ZoomOut, Locate } from "lucide-react";
+import { ZoomIn, ZoomOut, Locate, Crosshair } from "lucide-react";
 import { useReplayStore } from "@/store/replayStore";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,6 +26,8 @@ export function CenterReplay() {
   const pixiControls = useReplayStore((s) => s.pixiControls);
   const metadata = useReplayStore((s) => s.metadata);
   const selectedRace = useReplayStore((s) => s.selectedRace);
+  const selectedDriver = useReplayStore((s) => s.selectedDriver);
+  const followedDriver = useReplayStore((s) => s.followedDriver);
 
   const pathname = usePathname();
   const isDemo = Boolean(
@@ -63,7 +65,39 @@ export function CenterReplay() {
         <div className="text-muted">Speed x{playbackSpeed}</div>
       </div>
 
-      <div className="absolute right-6 top-6 flex gap-1.5">
+      <div className="absolute right-6 top-6 flex items-center gap-1.5">
+        {followedDriver ? (
+          <div className="flex items-center gap-1.5 rounded-lg border border-accent/40 bg-black/70 px-2.5 py-1 text-xs backdrop-blur-sm">
+            <span className="h-2 w-2 rounded-full bg-accent animate-pulse" aria-hidden="true" />
+            <span className="font-semibold text-white">Following: {followedDriver}</span>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-xs text-muted hover:text-white hover:bg-white/10"
+              onClick={() => {
+                pixiControls?.stopFollowing();
+                pixiControls?.resetView();
+              }}
+              title="Return to full-circuit overview"
+              aria-label="Return to full-circuit overview"
+            >
+              Overview
+            </Button>
+          </div>
+        ) : selectedDriver ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 gap-1.5 bg-black/60 px-3 text-xs backdrop-blur-sm hover:bg-black/80"
+            onClick={() => pixiControls?.followDriver(selectedDriver)}
+            title={`Follow ${selectedDriver} with camera`}
+            aria-label={`Follow ${selectedDriver}`}
+          >
+            <Crosshair className="h-3.5 w-3.5 text-accent" />
+            Follow {selectedDriver}
+          </Button>
+        ) : null}
+
         <Button size="icon" variant="outline" onClick={() => pixiControls?.zoomIn()} title="Zoom in" aria-label="Zoom in">
           <ZoomIn className="h-4 w-4" />
         </Button>
@@ -74,7 +108,7 @@ export function CenterReplay() {
           size="icon"
           variant="outline"
           onClick={() => { pixiControls?.stopFollowing(); pixiControls?.resetView(); }}
-          title="Reset view"
+          title="Reset camera view to full circuit"
           aria-label="Reset camera view"
         >
           <Locate className="h-4 w-4" />

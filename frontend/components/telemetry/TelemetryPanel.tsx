@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { Gauge as GaugeIcon, Lock } from "lucide-react";
+import { Gauge as GaugeIcon, Lock, Crosshair } from "lucide-react";
 import { useReplayStore } from "@/store/replayStore";
 import { cn } from "@/lib/utils";
 
@@ -206,6 +206,8 @@ function useTyreAge(driverId: string | null, compound: string | undefined, lap: 
 export function TelemetryPanel() {
   const currentFrame = useReplayStore((s) => s.currentFrame);
   const selectedDriver = useReplayStore((s) => s.selectedDriver);
+  const followedDriver = useReplayStore((s) => s.followedDriver);
+  const pixiControls = useReplayStore((s) => s.pixiControls);
 
   const driverFrame = useMemo(
     () => currentFrame?.drivers.find((d) => d.driverId === selectedDriver) ?? null,
@@ -216,11 +218,36 @@ export function TelemetryPanel() {
 
   return (
     <div className="rounded-xl border border-border bg-panel p-3">
-      <div className="mb-2 flex items-center gap-1.5">
-        <GaugeIcon className="h-3.5 w-3.5 text-accent" />
-        <h3 className="text-xs font-bold uppercase tracking-wide text-muted">
-          Telemetry {selectedDriver ? `— ${selectedDriver}` : ""}
-        </h3>
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <GaugeIcon className="h-3.5 w-3.5 text-accent" />
+          <h3 className="text-xs font-bold uppercase tracking-wide text-muted">
+            Telemetry {selectedDriver ? `— ${selectedDriver}` : ""}
+          </h3>
+        </div>
+        {selectedDriver && (
+          <button
+            onClick={() => {
+              if (followedDriver === selectedDriver) {
+                pixiControls?.stopFollowing();
+                pixiControls?.resetView();
+              } else {
+                pixiControls?.followDriver(selectedDriver);
+              }
+            }}
+            className={cn(
+              "flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-semibold transition-colors",
+              followedDriver === selectedDriver
+                ? "bg-accent/20 text-accent border border-accent/40"
+                : "bg-black/40 text-muted hover:text-white border border-border"
+            )}
+            title={followedDriver === selectedDriver ? `Stop following ${selectedDriver} (return to overview)` : `Follow ${selectedDriver} with camera`}
+            aria-label={followedDriver === selectedDriver ? `Stop following ${selectedDriver}` : `Follow ${selectedDriver}`}
+          >
+            <Crosshair className="h-3 w-3" />
+            {followedDriver === selectedDriver ? "Following" : "Follow"}
+          </button>
+        )}
       </div>
 
       {!driverFrame && <p className="text-xs text-muted">Select a driver to see telemetry.</p>}

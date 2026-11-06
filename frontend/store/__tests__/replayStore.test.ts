@@ -61,5 +61,30 @@ describe("replayStore", () => {
     const resetState = useReplayStore.getState();
     expect(resetState.playing).toBe(false);
     expect(resetState.playbackSpeed).toBe(1);
+    expect(resetState.selectedDriver).toBeNull();
+    expect(resetState.followedDriver).toBeNull();
+  });
+
+  it("manages selectedDriver and followedDriver independently", () => {
+    const store = useReplayStore.getState();
+
+    // Selecting a driver does not automatically follow
+    store.setSelectedDriver("VER");
+    expect(useReplayStore.getState().selectedDriver).toBe("VER");
+    expect(useReplayStore.getState().followedDriver).toBeNull();
+
+    // Explicitly follow
+    store.setFollowedDriver("VER");
+    expect(useReplayStore.getState().followedDriver).toBe("VER");
+
+    // Switching followed driver
+    store.setFollowedDriver("PIA");
+    expect(useReplayStore.getState().followedDriver).toBe("PIA");
+
+    // Stop following
+    store.setFollowedDriver(null);
+    expect(useReplayStore.getState().followedDriver).toBeNull();
+    // selectedDriver remains selected
+    expect(useReplayStore.getState().selectedDriver).toBe("VER");
   });
 });

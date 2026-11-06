@@ -90,11 +90,23 @@ test.describe("Demo Replay & Fallback Flow", () => {
     const canvasContainer = page.locator("[data-testid='replay-canvas']");
     await expect(canvasContainer).toBeAttached({ timeout: 45_000 });
 
-    // 3. Check drivers appear in list and select VER
-    const verDriverBtn = page.getByRole("button", { name: /Select and follow VER/i }).first();
+    // 3. Check drivers appear in list and select VER (overview remains default)
+    const verDriverBtn = page.getByRole("button", { name: /Select.*VER/i }).first();
     await expect(verDriverBtn).toBeVisible({ timeout: 20_000 });
     await verDriverBtn.click();
     await expect(page.getByText("Select a driver to see telemetry")).not.toBeVisible();
+
+    // Verify explicit follow control is present for selected driver
+    const followVerBtn = page.getByRole("button", { name: /Follow VER/i }).first();
+    await expect(followVerBtn).toBeVisible({ timeout: 5000 });
+    await followVerBtn.click();
+    await expect(page.getByText(/Following: VER/i)).toBeVisible();
+
+    // Verify returning to full-circuit overview via Overview button
+    const overviewBtn = page.getByRole("button", { name: /Return to full-circuit overview/i }).first();
+    await expect(overviewBtn).toBeVisible({ timeout: 5000 });
+    await overviewBtn.click();
+    await expect(page.getByText(/Following: VER/i)).not.toBeVisible();
 
     // 4. Test Play/Pause toggle
     const playPauseBtn = page.getByRole("button", { name: /^(Play|Pause) replay/i }).first();

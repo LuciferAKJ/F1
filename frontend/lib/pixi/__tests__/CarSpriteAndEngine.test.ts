@@ -208,4 +208,67 @@ describe("PixiReplayEngine Selection, Z-Elevation & Multi-Car Label Deconflictio
       }
     }
   });
+
+  it("keeps camera in free overview mode during normal driver selection", () => {
+    const mockCamera = {
+      mode: "free",
+      followAbbr: null,
+      followDriver: vi.fn(),
+      resetView: vi.fn(),
+      stopFollowing: vi.fn(),
+    };
+    (engine as any).camera = mockCamera;
+
+    // Normal driver selection
+    engine.setSelectedDriver("VER");
+    expect(engine.getCar("VER")?.isSelected).toBe(true);
+
+    // Camera must NOT have been told to follow VER
+    expect(mockCamera.followDriver).not.toHaveBeenCalled();
+    expect(mockCamera.mode).toBe("free");
+  });
+
+  it("handles explicit followDriver and stopFollowing with onFollowChange notification", () => {
+    const followHandler = vi.fn();
+    engine.setFollowChangeHandler(followHandler);
+
+    const mockCamera = {
+      mode: "free",
+      followAbbr: null as string | null,
+      onFollowChange: followHandler,
+      followDriver(abbr: string) {
+        this.mode = "follow";
+        this.followAbbr = abbr;
+        this.onFollowChange?.(abbr);
+      },
+      stopFollowing() {
+        this.mode = "free";
+        this.followAbbr = null;
+        this.onFollowChange?.(null);
+      },
+      resetView() {
+        this.mode = "free";
+        this.followAbbr = null;
+        this.onFollowChange?.(null);
+      },
+    };
+    (engine as any).camera = mockCamera;
+
+    // Explicit follow
+    engine.followDriver("PIA");
+    expect(mockCamera.mode).toBe("follow");
+    expect(mockCamera.followAbbr).toBe("PIA");
+    expect(followHandler).toHaveBeenCalledWith("PIA");
+
+    // Switch follow to NOR
+    engine.followDriver("NOR");
+    expect(mockCamera.followAbbr).toBe("NOR");
+    expect(followHandler).toHaveBeenCalledWith("NOR");
+
+    // Return to overview via stopFollowing
+    engine.stopFollowing();
+    expect(mockCamera.mode).toBe("free");
+    expect(mockCamera.followAbbr).toBeNull();
+    expect(followHandler).toHaveBeenCalledWith(null);
+  });
 });
