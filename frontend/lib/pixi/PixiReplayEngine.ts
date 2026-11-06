@@ -35,7 +35,9 @@ export class PixiReplayEngine {
   private carsList: CarSprite[] = [];
   private ready = false;
   private selectedAbbr: string | null = null;
+  private pendingFollow: string | null = null;
   private resizeObserver: ResizeObserver | null = null;
+  private onFollowChange: ((abbr: string | null) => void) | null = null;
 
   // Pre-allocated coordinates cache to prevent per-frame GC allocations
   private placedLabels: { x: number; y: number }[] = [];
@@ -76,8 +78,15 @@ export class PixiReplayEngine {
     }
 
     this.camera = new CameraController(app, world);
+    if (this.onFollowChange) {
+      this.camera.onFollowChange = this.onFollowChange;
+    }
     this.camera.setWorldBounds(this.trackLayer.worldWidth, this.trackLayer.worldHeight);
     this.camera.resetView();
+    if (this.pendingFollow) {
+      this.camera.followDriver(this.pendingFollow);
+      this.pendingFollow = null;
+    }
     // Start already-fitted rather than animating in from a default transform on first paint.
     const initial = this.camera.getTargetTransform();
     world.scale.set(initial.scale);
@@ -257,11 +266,27 @@ export class PixiReplayEngine {
     return this.world;
   }
 
+  setFollowChangeHandler(handler: (abbr: string | null) => void): void {
+    this.onFollowChange = handler;
+    if (this.camera) {
+      this.camera.onFollowChange = handler;
+    }
+  }
+
   zoomIn(): void { this.camera?.zoomIn(); }
   zoomOut(): void { this.camera?.zoomOut(); }
   resetView(): void { this.camera?.resetView(); }
-  followDriver(abbr: string): void { this.camera?.followDriver(abbr); }
-  stopFollowing(): void { if (this.camera) this.camera.mode = "free"; }
+  followDriver(abbr: string): void {
+    if (this.camera) {
+      this.camera.followDriver(abbr);
+    } else {
+      this.pendingFollow = abbr;
+    }
+  }
+  stopFollowing(): void {
+    this.pendingFollow = null;
+    this.camera?.stopFollowing();
+  }
 
   destroy(): void {
     document.removeEventListener("visibilitychange", this.onVisibilityChange);

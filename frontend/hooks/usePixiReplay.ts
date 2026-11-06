@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { PixiReplayEngine } from "@/lib/pixi/PixiReplayEngine";
+import { useReplayStore } from "@/store/replayStore";
 import type { CircuitData, DriverMeta, ReplayFrame } from "@/types/replay";
 
 interface UsePixiReplayArgs {
@@ -19,11 +20,15 @@ interface UsePixiReplayArgs {
  */
 export function usePixiReplay({ containerRef, circuit, drivers, frame, selectedDriver, onReady }: UsePixiReplayArgs) {
   const engineRef = useRef<PixiReplayEngine | null>(null);
+  const setFollowedDriver = useReplayStore((s) => s.setFollowedDriver);
 
   useEffect(() => {
     if (!containerRef.current || !circuit || drivers.length === 0) return;
 
     const engine = new PixiReplayEngine();
+    engine.setFollowChangeHandler((abbr) => {
+      setFollowedDriver(abbr);
+    });
     engineRef.current = engine;
     let cancelled = false;
 
@@ -54,8 +59,17 @@ export function usePixiReplay({ containerRef, circuit, drivers, frame, selectedD
   return {
     zoomIn: () => engineRef.current?.zoomIn(),
     zoomOut: () => engineRef.current?.zoomOut(),
-    resetView: () => engineRef.current?.resetView(),
-    followDriver: (abbr: string) => engineRef.current?.followDriver(abbr),
-    stopFollowing: () => engineRef.current?.stopFollowing(),
+    resetView: () => {
+      setFollowedDriver(null);
+      engineRef.current?.resetView();
+    },
+    followDriver: (abbr: string) => {
+      setFollowedDriver(abbr);
+      engineRef.current?.followDriver(abbr);
+    },
+    stopFollowing: () => {
+      setFollowedDriver(null);
+      engineRef.current?.stopFollowing();
+    },
   };
 }

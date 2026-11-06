@@ -226,8 +226,17 @@ export function LeaderboardPanel() {
   const currentFrame = useReplayStore((s) => s.currentFrame);
   const metadata = useReplayStore((s) => s.metadata);
   const selectedDriver = useReplayStore((s) => s.selectedDriver);
+  const followedDriver = useReplayStore((s) => s.followedDriver);
   const setSelectedDriver = useReplayStore((s) => s.setSelectedDriver);
+  const pixiControls = useReplayStore((s) => s.pixiControls);
   const [compact, setCompact] = useState(false);
+
+  const handleSelectDriver = (abbr: string) => {
+    setSelectedDriver(abbr);
+    if (followedDriver) {
+      pixiControls?.followDriver(abbr);
+    }
+  };
 
   const prevPositions = useRef<Map<string, number>>(new Map());
   const [positionDeltas, setPositionDeltas] = useState<Map<string, number>>(new Map());
@@ -293,7 +302,7 @@ export function LeaderboardPanel() {
               data={row}
               selected={selectedDriver === row.frame.driverId}
               compact={compact}
-              onSelect={setSelectedDriver}
+              onSelect={handleSelectDriver}
             />
           ))}
         </AnimatePresence>

@@ -32,6 +32,7 @@ interface ReplayState {
   playbackSpeed: number;
   playing: boolean;
   selectedDriver: string | null;
+  followedDriver: string | null;
   pixiControls: PixiControls | null;
   wsControls: WsControls | null;
 
@@ -48,6 +49,7 @@ interface ReplayState {
   setSpeed: (speed: number) => void;
   seek: (timestamp: number) => void;
   setSelectedDriver: (abbr: string | null) => void;
+  setFollowedDriver: (abbr: string | null) => void;
   setPixiControls: (controls: PixiControls | null) => void;
   setWsControls: (controls: WsControls | null) => void;
   reset: () => void;
@@ -65,6 +67,7 @@ const initialState = {
   playbackSpeed: 1,
   playing: false,
   selectedDriver: null,
+  followedDriver: null,
   pixiControls: null,
   wsControls: null,
 };
@@ -90,6 +93,7 @@ export const useReplayStore = create<ReplayState>((set) => ({
         currentLap: 1,
         playing: false,
         selectedDriver: null,
+        followedDriver: null,
       };
     }),
   setMetadata: (metadata) => set((s) => ({ metadata, metadataError: metadata ? null : s.metadataError })),
@@ -115,6 +119,7 @@ export const useReplayStore = create<ReplayState>((set) => ({
   setSpeed: (speed) => set({ playbackSpeed: speed }),
   seek: (timestamp) => set({ currentTimestamp: timestamp }),
   setSelectedDriver: (abbr) => set({ selectedDriver: abbr }),
+  setFollowedDriver: (abbr) => set({ followedDriver: abbr }),
   setPixiControls: (controls) => set({ pixiControls: controls }),
   setWsControls: (controls) => set({ wsControls: controls }),
   reset: () => set((state) => ({ ...initialState, pixiControls: state.pixiControls, wsControls: state.wsControls })),

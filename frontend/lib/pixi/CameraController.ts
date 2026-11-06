@@ -15,6 +15,7 @@ const FIT_MARGIN = 0.88; // leave breathing room around the circuit when auto-fi
 export class CameraController {
   mode: CameraMode = "free";
   followAbbr: string | null = null;
+  onFollowChange?: (abbr: string | null) => void;
 
   private dragging = false;
   private userHasPanned = false;
@@ -53,7 +54,11 @@ export class CameraController {
   private onPointerDown = (e: FederatedPointerEvent): void => {
     this.dragging = true;
     this.userHasPanned = true;
-    this.mode = "free"; // manual pan cancels follow mode
+    if (this.mode === "follow") {
+      this.mode = "free";
+      this.followAbbr = null;
+      this.onFollowChange?.(null);
+    }
     this.lastPointer = { x: e.global.x, y: e.global.y };
   };
 
@@ -112,6 +117,7 @@ export class CameraController {
     this.mode = "free";
     this.followAbbr = null;
     this.userHasPanned = false;
+    this.onFollowChange?.(null);
   }
 
   handleResize(): void {
@@ -119,12 +125,26 @@ export class CameraController {
     this.app.stage.hitArea = this.app.screen;
     if (this.mode === "free" && !this.userHasPanned) {
       this.resetView();
+      // Snap immediately if unpositioned initial frame to avoid jump
+      if (this.world.position.x === 0 && this.world.position.y === 0) {
+        this.world.scale.set(this.targetScale);
+        this.world.position.set(this.targetX, this.targetY);
+      }
     }
   }
 
   followDriver(abbr: string): void {
     this.mode = "follow";
     this.followAbbr = abbr;
+    // Zoom in smoothly if currently at full-circuit overview scale for clear car tracking
+    this.targetScale = Math.max(this.targetScale, 1.8);
+    this.onFollowChange?.(abbr);
+  }
+
+  stopFollowing(): void {
+    this.mode = "free";
+    this.followAbbr = null;
+    this.onFollowChange?.(null);
   }
 
   /** Called every tick. When following, recomputes the target to keep the car centered;
