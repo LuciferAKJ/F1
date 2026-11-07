@@ -55,6 +55,8 @@ interface ReplayState {
   reset: () => void;
 }
 
+const MAX_STORED_FRAMES = 50; // Bounded window prevents unbounded memory growth during long sessions
+
 const initialState = {
   selectedRace: null,
   metadata: null,
@@ -101,12 +103,18 @@ export const useReplayStore = create<ReplayState>((set) => ({
   setIsMetadataLoading: (loading) => set({ isMetadataLoading: loading }),
   setFrames: (frames) => set({ frames }),
   pushFrame: (frame) =>
-    set((state) => ({
-      frames: [...state.frames, frame],
-      currentFrame: frame,
-      currentTimestamp: frame.timestamp,
-      currentLap: frame.lap,
-    })),
+    set((state) => {
+      const frames =
+        state.frames.length >= MAX_STORED_FRAMES
+          ? [...state.frames.slice(state.frames.length - MAX_STORED_FRAMES + 1), frame]
+          : [...state.frames, frame];
+      return {
+        frames,
+        currentFrame: frame,
+        currentTimestamp: frame.timestamp,
+        currentLap: frame.lap,
+      };
+    }),
   setCurrentFrame: (frame) =>
     set(
       frame

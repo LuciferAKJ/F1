@@ -148,14 +148,22 @@ export class CameraController {
   }
 
   /** Called every tick. When following, recomputes the target to keep the car centered;
-   * always eases current transform toward the target for smooth zoom/pan/reset/follow. */
-  update(followedLocalPos: { x: number; y: number } | null): void {
+   * always eases current transform toward the target (frame-rate independent when deltaMS is provided). */
+  update(followedLocalPos: { x: number; y: number } | null, deltaMS?: number): void {
     if (this.mode === "follow" && followedLocalPos) {
       this.targetX = this.app.screen.width / 2 - followedLocalPos.x * this.targetScale;
       this.targetY = this.app.screen.height / 2 - followedLocalPos.y * this.targetScale;
     }
 
-    const lerp = this.mode === "follow" ? FOLLOW_LERP : SMOOTH_LERP;
+    const lerp =
+      deltaMS !== undefined && deltaMS > 0
+        ? this.mode === "follow"
+          ? 1 - Math.exp(-5.0044 * (deltaMS / 1000))
+          : 1 - Math.exp(-9.7511 * (deltaMS / 1000))
+        : this.mode === "follow"
+          ? FOLLOW_LERP
+          : SMOOTH_LERP;
+
     this.world.scale.x += (this.targetScale - this.world.scale.x) * lerp;
     this.world.scale.y = this.world.scale.x;
     this.world.position.x += (this.targetX - this.world.position.x) * lerp;

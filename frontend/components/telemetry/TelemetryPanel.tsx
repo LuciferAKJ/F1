@@ -33,19 +33,36 @@ function isDrsOpen(drs: number): boolean {
 
 /** Smoothly animates a target number via a spring, exposing both the live
  * motion value (for gauges) and a rounded display value (for text) so
- * numeric readouts interpolate instead of jumping between replay frames. */
+ * numeric readouts interpolate instead of jumping between replay frames.
+ * Updates are throttled to integer changes and RAF-coalesced to prevent redundant renders. */
 function useAnimatedNumber(target: number, config = { stiffness: 120, damping: 20 }) {
   const motionVal = useMotionValue(target);
   const spring = useSpring(motionVal, config);
-  const [display, setDisplay] = useState(Math.round(target));
+  const [display, setDisplay] = useState(() => Math.round(target));
+  const lastDisplayRef = useRef(Math.round(target));
 
   useEffect(() => {
     motionVal.set(target);
   }, [target, motionVal]);
 
   useEffect(() => {
-    const unsub = spring.on("change", (v) => setDisplay(Math.round(v)));
-    return unsub;
+    let animFrame: number | null = null;
+    const unsub = spring.on("change", (v) => {
+      const rounded = Math.round(v);
+      if (rounded !== lastDisplayRef.current) {
+        lastDisplayRef.current = rounded;
+        if (animFrame === null) {
+          animFrame = requestAnimationFrame(() => {
+            animFrame = null;
+            setDisplay(lastDisplayRef.current);
+          });
+        }
+      }
+    });
+    return () => {
+      unsub();
+      if (animFrame !== null) cancelAnimationFrame(animFrame);
+    };
   }, [spring]);
 
   return { spring, display };
@@ -184,12 +201,10 @@ interface TyreHistoryEntry {
 /** Estimates laps-on-current-tyre client-side from observed compound/lap changes (not a real telemetry field). */
 function useTyreAge(driverId: string | null, compound: string | undefined, lap: number | undefined) {
   const historyRef = useRef<Map<string, TyreHistoryEntry>>(new Map());
-  const [age, setAge] = useState<number | null>(null);
 
-  useEffect(() => {
+  return useMemo(() => {
     if (!driverId || compound === undefined || lap === undefined) {
-      setAge(null);
-      return;
+      return null;
     }
     const history = historyRef.current;
     let entry = history.get(driverId);
@@ -197,10 +212,8 @@ function useTyreAge(driverId: string | null, compound: string | undefined, lap: 
       entry = { compound, tyreStartLap: lap };
       history.set(driverId, entry);
     }
-    setAge(lap - entry.tyreStartLap + 1);
+    return lap - entry.tyreStartLap + 1;
   }, [driverId, compound, lap]);
-
-  return age;
 }
 
 export function TelemetryPanel() {

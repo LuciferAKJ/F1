@@ -158,6 +158,7 @@ export class CarSprite {
   }
 
   setScale(scale: number): void {
+    if (Math.abs(this.baseScale - scale) < 0.0001) return;
     this.baseScale = scale;
     const effectiveScale = this.selected ? scale * 1.25 : scale;
     this.container.scale.set(effectiveScale);
@@ -197,16 +198,26 @@ export class CarSprite {
     }
   }
 
-  /** Called every render tick (60 FPS) to smoothly ease position + rotation toward the latest target. */
-  tick(): void {
+  /** Called every render tick to smoothly ease position + rotation toward the latest target (frame-rate independent when deltaMS is provided). */
+  tick(deltaMS?: number): void {
     const dx = this.targetX - this.container.position.x;
     const dy = this.targetY - this.container.position.y;
-    this.container.position.x += dx * POSITION_LERP;
-    this.container.position.y += dy * POSITION_LERP;
+
+    const posLerp =
+      deltaMS !== undefined && deltaMS > 0
+        ? 1 - Math.exp(-25.8471 * (deltaMS / 1000))
+        : POSITION_LERP;
+    const rotLerp =
+      deltaMS !== undefined && deltaMS > 0
+        ? 1 - Math.exp(-17.2609 * (deltaMS / 1000))
+        : ROTATION_LERP;
+
+    this.container.position.x += dx * posLerp;
+    this.container.position.y += dy * posLerp;
 
     let delta = this.targetRotation - this.carGroup.rotation;
     delta = Math.atan2(Math.sin(delta), Math.cos(delta)); // shortest angular path
-    this.carGroup.rotation += delta * ROTATION_LERP;
+    this.carGroup.rotation += delta * rotLerp;
   }
 
   destroy(): void {

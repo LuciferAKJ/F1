@@ -41,6 +41,9 @@ export class PixiReplayEngine {
 
   // Pre-allocated coordinates cache to prevent per-frame GC allocations
   private placedLabels: { x: number; y: number }[] = [];
+  private lastMarkerScale = -1;
+  private lastDeconflictedPositions: { x: number; y: number }[] = [];
+  private lastDeconflictedSelectedAbbr: string | null = null;
 
   private onVisibilityChange = (): void => {
     if (!this.app) return;
@@ -68,12 +71,15 @@ export class PixiReplayEngine {
 
     this.carsList = [];
     this.placedLabels = [];
+    this.lastDeconflictedPositions = [];
+    this.lastMarkerScale = -1;
 
     for (const driver of drivers) {
       const car = new CarSprite(driver.abbreviation, driver.teamColor, driver.driverNumber);
       this.cars.set(driver.abbreviation, car);
       this.carsList.push(car);
       this.placedLabels.push({ x: 0, y: 0 });
+      this.lastDeconflictedPositions.push({ x: -9999, y: -9999 });
       world.addChild(car.container);
     }
 
@@ -102,31 +108,34 @@ export class PixiReplayEngine {
     this.ready = true;
   }
 
-  private onTick = (): void => {
+  private onTick = (ticker?: { deltaMS: number }): void => {
     if (!this.camera) return;
+    const deltaMS = ticker?.deltaMS ?? this.app?.ticker?.deltaMS ?? 16.667;
+
     const currentScale = this.world?.scale.x ?? 1;
     if (currentScale > 0) {
       // Keep car markers easily visible and readable across all zoom levels and screen sizes.
       const markerScale = Math.max(0.6, Math.min(2.5, 0.9 / currentScale));
-      for (let i = 0; i < this.carsList.length; i++) {
-        this.carsList[i].setScale(markerScale);
-        this.carsList[i].tick();
-      }
-    } else {
-      for (let i = 0; i < this.carsList.length; i++) {
-        this.carsList[i].tick();
+      if (Math.abs(markerScale - this.lastMarkerScale) > 0.001) {
+        this.lastMarkerScale = markerScale;
+        for (let i = 0; i < this.carsList.length; i++) {
+          this.carsList[i].setScale(markerScale);
+        }
       }
     }
+    for (let i = 0; i < this.carsList.length; i++) {
+      this.carsList[i].tick(deltaMS);
+    }
 
-    // Dynamic collision-aware multi-slot label deconfliction
-    this.deconflictLabels();
+    // Dynamic collision-aware multi-slot label deconfliction (evaluated only on motion/selection change)
+    this.deconflictLabels(false);
 
     let followedPos: { x: number; y: number } | null = null;
     if (this.camera.mode === "follow" && this.camera.followAbbr) {
       const followed = this.cars.get(this.camera.followAbbr);
       if (followed) followedPos = { x: followed.container.position.x, y: followed.container.position.y };
     }
-    this.camera.update(followedPos);
+    this.camera.update(followedPos, deltaMS);
   };
 
   /**
@@ -135,9 +144,35 @@ export class PixiReplayEngine {
    * For dense packs of 3+ cars, evaluates candidate slots around each car's perimeter
    * and picks the first slot free of label-on-label and label-on-car overlap.
    */
-  deconflictLabels(): void {
+  deconflictLabels(force = true): void {
     const totalCars = this.carsList.length;
     if (totalCars === 0) return;
+
+    if (!force) {
+      let needsDeconflict = this.selectedAbbr !== this.lastDeconflictedSelectedAbbr;
+      if (!needsDeconflict) {
+        for (let i = 0; i < totalCars; i++) {
+          const car = this.carsList[i];
+          const last = this.lastDeconflictedPositions[i];
+          if (!last || Math.hypot(car.container.position.x - last.x, car.container.position.y - last.y) > 0.5) {
+            needsDeconflict = true;
+            break;
+          }
+        }
+      }
+      if (!needsDeconflict) return;
+    }
+
+    this.lastDeconflictedSelectedAbbr = this.selectedAbbr;
+    for (let i = 0; i < totalCars; i++) {
+      const car = this.carsList[i];
+      if (!this.lastDeconflictedPositions[i]) {
+        this.lastDeconflictedPositions[i] = { x: car.container.position.x, y: car.container.position.y };
+      } else {
+        this.lastDeconflictedPositions[i].x = car.container.position.x;
+        this.lastDeconflictedPositions[i].y = car.container.position.y;
+      }
+    }
 
     let placedCount = 0;
 
@@ -256,6 +291,7 @@ export class PixiReplayEngine {
         }
       }
     }
+    this.deconflictLabels(true);
   }
 
   getCar(abbr: string): CarSprite | undefined {
@@ -298,6 +334,7 @@ export class PixiReplayEngine {
     this.cars.clear();
     this.carsList = [];
     this.placedLabels = [];
+    this.lastDeconflictedPositions = [];
     this.app?.destroy(true, { children: true });
     this.app = null;
     this.ready = false;
