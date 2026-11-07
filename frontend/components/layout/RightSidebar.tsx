@@ -12,10 +12,10 @@ export function RightSidebar() {
 
   if (collapsed) {
     return (
-      <div className="flex w-10 shrink-0 flex-col items-center p-2">
+      <div className="flex w-10 shrink-0 flex-col items-center p-2 bg-pitwall-dock border-l border-pitwall-hairline">
         <button
           onClick={() => setPreference("rightSidebarCollapsed", false)}
-          className="rounded-md p-1.5 text-muted hover:bg-black/40 hover:text-white"
+          className="rounded-md p-1.5 text-pitwall-text-muted hover:bg-pitwall-elevated hover:text-white"
           title="Expand sidebar"
           aria-label="Expand telemetry and leaderboard sidebar"
         >
@@ -29,12 +29,12 @@ export function RightSidebar() {
     <motion.aside
       initial={{ opacity: 0, x: 8 }}
       animate={{ opacity: 1, x: 0 }}
-      className="flex w-72 shrink-0 flex-col gap-3 overflow-y-auto p-3"
+      className="flex w-72 md:w-76 lg:w-[310px] shrink-0 flex-col gap-3 overflow-y-auto p-3 bg-pitwall-dock border-l border-pitwall-hairline"
     >
       <div className="flex justify-start">
         <button
           onClick={() => setPreference("rightSidebarCollapsed", true)}
-          className="rounded-md p-1 text-muted hover:bg-black/40 hover:text-white"
+          className="rounded-md p-1 text-pitwall-text-muted hover:bg-pitwall-elevated hover:text-white"
           title="Collapse sidebar"
           aria-label="Collapse telemetry and leaderboard sidebar"
         >

@@ -9,6 +9,7 @@ import { useReplayWebSocket } from "@/hooks/useReplayWebSocket";
 import { useReplayFrameAt } from "@/hooks/useReplayFrameAt";
 import { useRaceIntelligence } from "@/hooks/useRaceIntelligence";
 import { usePreferences } from "@/hooks/usePreferences";
+import { Navbar } from "@/components/layout/Navbar";
 import { LeftSidebar } from "@/components/layout/LeftSidebar";
 import { CenterReplay } from "@/components/layout/CenterReplay";
 import { RightSidebar } from "@/components/layout/RightSidebar";
@@ -101,13 +102,14 @@ export function MainDashboard({ race }: MainDashboardProps) {
   }, [playbackSpeed, setPreference]);
 
   return (
-    <div className="flex h-screen w-screen animate-fade-in flex-col overflow-hidden">
-      <div className="flex flex-1 overflow-hidden">
+    <div className="flex h-screen w-screen animate-fade-in flex-col overflow-hidden bg-pitwall-canvas text-pitwall-text font-body select-none">
+      <Navbar />
+      <div className="flex flex-1 min-h-0 w-full overflow-hidden flex-row">
         <LeftSidebar />
         <CenterReplay />
         <RightSidebar />
       </div>
-      <div className="max-h-[45vh] shrink-0 overflow-y-auto px-3 pt-2">
+      <div className="max-h-[35vh] shrink-0 overflow-y-auto bg-pitwall-dock/80 border-t border-pitwall-hairline px-3 pt-2">
         <div className="flex flex-col gap-3">
           <AnalyticsDashboard race={selectedRace} onSeek={ws.seek} />
           <RaceIntelligencePanel
