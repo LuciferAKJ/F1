@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowUp, ArrowDown, Minus, Rows3, List, Sparkles } from "lucide-react";
 import { useReplayStore } from "@/store/replayStore";
@@ -55,11 +55,29 @@ interface DriverHistory extends DerivedDriverStats {
 /** Rolling per-driver history used to derive tyre age + approximate lap times as frames stream in. */
 function useDerivedDriverStats(currentFrame: RawReplayFrame | null) {
   const historyRef = useRef<Map<string, DriverHistory>>(new Map());
-  const [stats, setStats] = useState<Map<string, DerivedDriverStats>>(new Map());
-  const [sessionBestAbbr, setSessionBestAbbr] = useState<string | null>(null);
+  const lastFrameRef = useRef<RawReplayFrame | null>(null);
+  const cachedResultRef = useRef<{ stats: Map<string, DerivedDriverStats>; sessionBestAbbr: string | null }>({
+    stats: new Map(),
+    sessionBestAbbr: null,
+  });
 
-  useEffect(() => {
-    if (!currentFrame) return;
+  return useMemo(() => {
+    if (!currentFrame) {
+      historyRef.current.clear();
+      cachedResultRef.current = { stats: new Map(), sessionBestAbbr: null };
+      lastFrameRef.current = null;
+      return cachedResultRef.current;
+    }
+
+    if (lastFrameRef.current === currentFrame) {
+      return cachedResultRef.current;
+    }
+
+    // Reset history if scrubbed backward
+    if (lastFrameRef.current && currentFrame.timestamp < lastFrameRef.current.timestamp) {
+      historyRef.current.clear();
+    }
+
     const history = historyRef.current;
     const nextStats = new Map<string, DerivedDriverStats>();
     let bestOverall = { abbr: null as string | null, time: Infinity };
@@ -68,9 +86,13 @@ function useDerivedDriverStats(currentFrame: RawReplayFrame | null) {
       let h = history.get(d.driverId);
       if (!h) {
         h = {
-          compound: d.tyre, tyreStartLap: d.lap, lastLap: d.lap,
+          compound: d.tyre,
+          tyreStartLap: d.lap,
+          lastLap: d.lap,
           lapStartTimestamp: currentFrame.timestamp,
-          tyreAge: 1, lastLapTime: null, bestLapTime: null,
+          tyreAge: 1,
+          lastLapTime: null,
+          bestLapTime: null,
         };
       } else {
         if (d.tyre !== h.compound) {
@@ -94,11 +116,10 @@ function useDerivedDriverStats(currentFrame: RawReplayFrame | null) {
       }
     }
 
-    setStats(nextStats);
-    setSessionBestAbbr(bestOverall.abbr);
+    lastFrameRef.current = currentFrame;
+    cachedResultRef.current = { stats: nextStats, sessionBestAbbr: bestOverall.abbr };
+    return cachedResultRef.current;
   }, [currentFrame]);
-
-  return { stats, sessionBestAbbr };
 }
 
 interface RowData {
@@ -238,8 +259,9 @@ export function LeaderboardPanel() {
     }
   };
 
-  const prevPositions = useRef<Map<string, number>>(new Map());
-  const [positionDeltas, setPositionDeltas] = useState<Map<string, number>>(new Map());
+  const prevPositionsRef = useRef<Map<string, number>>(new Map());
+  const lastDeltaFrameRef = useRef<RawReplayFrame | null>(null);
+  const cachedDeltasRef = useRef<Map<string, number>>(new Map());
   const { stats: derivedStats, sessionBestAbbr } = useDerivedDriverStats(currentFrame);
 
   const driverMetaById = useMemo(() => {
@@ -253,19 +275,36 @@ export function LeaderboardPanel() {
     [currentFrame]
   );
 
-  // Diff against the previous frame's positions to derive real ▲/▼ indicators.
-  useEffect(() => {
-    if (!currentFrame) return;
+  // Diff against the previous frame's positions to derive real ▲/▼ indicators (synchronously computed during render)
+  const positionDeltas = useMemo(() => {
+    if (!currentFrame) {
+      prevPositionsRef.current.clear();
+      cachedDeltasRef.current = new Map();
+      lastDeltaFrameRef.current = null;
+      return cachedDeltasRef.current;
+    }
+
+    if (lastDeltaFrameRef.current === currentFrame) {
+      return cachedDeltasRef.current;
+    }
+
+    if (lastDeltaFrameRef.current && currentFrame.timestamp < lastDeltaFrameRef.current.timestamp) {
+      prevPositionsRef.current.clear();
+    }
+
     const nextDeltas = new Map<string, number>();
     for (const d of currentFrame.drivers) {
-      const prev = prevPositions.current.get(d.driverId);
+      const prev = prevPositionsRef.current.get(d.driverId);
       nextDeltas.set(d.driverId, prev !== undefined ? prev - d.position : 0);
     }
-    setPositionDeltas(nextDeltas);
 
     const nextPrev = new Map<string, number>();
     currentFrame.drivers.forEach((d) => nextPrev.set(d.driverId, d.position));
-    prevPositions.current = nextPrev;
+    prevPositionsRef.current = nextPrev;
+    lastDeltaFrameRef.current = currentFrame;
+    cachedDeltasRef.current = nextDeltas;
+
+    return nextDeltas;
   }, [currentFrame]);
 
   const rows: RowData[] = useMemo(
