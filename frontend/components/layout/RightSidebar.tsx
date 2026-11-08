@@ -3,7 +3,6 @@
 import { motion } from "framer-motion";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { TelemetryPanel } from "@/components/telemetry/TelemetryPanel";
-import { LeaderboardPanel } from "@/components/leaderboard/LeaderboardPanel";
 import { usePreferences } from "@/hooks/usePreferences";
 
 export function RightSidebar() {
@@ -15,9 +14,9 @@ export function RightSidebar() {
       <div className="flex w-10 shrink-0 flex-col items-center p-2 bg-pitwall-dock border-l border-pitwall-hairline">
         <button
           onClick={() => setPreference("rightSidebarCollapsed", false)}
-          className="rounded-md p-1.5 text-pitwall-text-muted hover:bg-pitwall-elevated hover:text-white"
+          className="rounded-sm p-1.5 text-pitwall-text-muted hover:bg-pitwall-elevated hover:text-white"
           title="Expand sidebar"
-          aria-label="Expand telemetry and leaderboard sidebar"
+          aria-label="Expand telemetry sidebar"
         >
           <PanelRightOpen className="h-4 w-4" />
         </button>
@@ -34,15 +33,14 @@ export function RightSidebar() {
       <div className="flex justify-start">
         <button
           onClick={() => setPreference("rightSidebarCollapsed", true)}
-          className="rounded-md p-1 text-pitwall-text-muted hover:bg-pitwall-elevated hover:text-white"
+          className="rounded-sm p-1 text-pitwall-text-muted hover:bg-pitwall-elevated hover:text-white"
           title="Collapse sidebar"
-          aria-label="Collapse telemetry and leaderboard sidebar"
+          aria-label="Collapse telemetry sidebar"
         >
           <PanelRightClose className="h-3.5 w-3.5" />
         </button>
       </div>
       <TelemetryPanel />
-      <LeaderboardPanel />
     </motion.aside>
   );
 }
