@@ -1,224 +1,196 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, ChevronUp, Lock, Rows3, List, Download } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Activity,
+  Timer,
+  Radio,
+  Layers,
+  Sparkles,
+} from "lucide-react";
 import { useReplayStore } from "@/store/replayStore";
 import type { SelectedRace } from "@/store/replayStore";
-import { useDriverSeries } from "@/hooks/useDriverSeries";
-import { usePreferences } from "@/hooks/usePreferences";
-import { TelemetryChart } from "@/components/analytics/TelemetryChart";
-import { Button } from "@/components/ui/button";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import { exportCSV } from "@/lib/exportUtils";
-import { toast } from "@/store/toastStore";
+import type { RaceIntelligence } from "@/lib/raceIntelligence";
+import { TelemetryTracesView } from "./TelemetryTracesView";
+import { LapComparisonView } from "./LapComparisonView";
+import { RaceControlView } from "./RaceControlView";
+import { StrategyView } from "./StrategyView";
+import { cn } from "@/lib/utils";
 
-const RPM_MAX = 12000; // same assumed visualization scale used by the telemetry dashboard
-
-const UNAVAILABLE_ANALYTICS = [
-  { title: "Lap Delta", reason: "Needs per-lap official lap times; the replay pipeline only exposes live position, not timed laps." },
-  { title: "Sector Comparison", reason: "Needs per-sector timing splits; only the current sector index is streamed, not sector durations." },
-  { title: "Tyre Strategy", reason: "Needs pit in/out timestamps across the race; not captured by the current telemetry pipeline." },
-  { title: "Pit Stop Timeline", reason: "Needs pit lane entry/exit events; no pit-lane data is exposed by the backend yet." },
-];
+export type WorkbenchTab = "telemetry" | "laps" | "race-control" | "strategy";
 
 interface AnalyticsDashboardProps {
   race: SelectedRace | null;
   onSeek: (t: number) => void;
+  intelligence?: RaceIntelligence | null;
+  isLoadingIntelligence?: boolean;
 }
 
-export function AnalyticsDashboard({ race, onSeek }: AnalyticsDashboardProps) {
-  const metadata = useReplayStore((s) => s.metadata);
+function formatRaceTime(seconds: number): string {
+  const safe = Math.max(0, isNaN(seconds) ? 0 : seconds);
+  const m = Math.floor(safe / 60);
+  const s = Math.floor(safe % 60);
+  const ms = Math.floor((safe % 1) * 1000);
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
+}
+
+export const AnalyticsDashboard = memo(function AnalyticsDashboard({
+  race,
+  onSeek,
+  intelligence = null,
+  isLoadingIntelligence = false,
+}: AnalyticsDashboardProps) {
   const selectedDriver = useReplayStore((s) => s.selectedDriver);
   const currentTimestamp = useReplayStore((s) => s.currentTimestamp);
-  const seek = useReplayStore((s) => s.seek);
+  const metadata = useReplayStore((s) => s.metadata);
+  const playing = useReplayStore((s) => s.playing);
 
-  const [expanded, setExpanded] = useState(false);
-  const { preferences, setPreference } = usePreferences();
-  const compact = preferences.compactMode;
-  const comparisonEnabled = preferences.comparisonMode;
-  const [compareDriver, setCompareDriver] = useState<string | null>(null);
-  const [zoomIndices, setZoomIndices] = useState<[number, number] | null>(null);
+  const [expanded, setExpanded] = useState(true);
+  const [activeTab, setActiveTab] = useState<WorkbenchTab>("telemetry");
 
-  const { series: primarySeries } = useDriverSeries(race, selectedDriver);
-  const { series: compareSeries } = useDriverSeries(
-    race,
-    comparisonEnabled ? compareDriver : null
-  );
+  const driverData = useMemo(() => {
+    if (!selectedDriver || !metadata?.drivers) return null;
+    return metadata.drivers.find((d) => d.abbreviation === selectedDriver) ?? null;
+  }, [selectedDriver, metadata]);
 
-  const driverColor = useMemo(
-    () => (abbr: string | null) => metadata?.drivers.find((d) => d.abbreviation === abbr)?.teamColor ?? "#8a8a8a",
-    [metadata]
-  );
-
-  const handleSeek = (t: number) => {
-    seek(t); // immediate local UI feedback
-    onSeek(t); // mirror to the WebSocket so playback stays in sync
-  };
-
-  const otherDrivers = useMemo(
-    () => metadata?.drivers.filter((d) => d.abbreviation !== selectedDriver) ?? [],
-    [metadata, selectedDriver]
-  );
-
-  const compareActive = comparisonEnabled && compareDriver;
-  const primaryChartSeries = { data: primarySeries, color: driverColor(selectedDriver), label: selectedDriver ?? "—" };
-  const compareChartSeries = compareActive
-    ? { data: compareSeries, color: driverColor(compareDriver), label: compareDriver as string }
-    : null;
-
-  const handleExportCSV = () => {
-    if (!selectedDriver || primarySeries.length === 0) return;
-    const rows = primarySeries.map((p) => ({
-      timestampSeconds: p.t, driver: selectedDriver, speedKmh: p.speed,
-      throttlePercent: p.throttle, brakeOn: p.brake === 100, rpm: p.rpm, gear: p.gear,
-    }));
-    exportCSV(rows, `${selectedDriver}-telemetry.csv`);
-    toast.success(`Exported ${selectedDriver} telemetry as CSV`);
-  };
-
-  if (!selectedDriver) {
-    return (
-      <div className="rounded-xl border border-border bg-panel p-3 text-xs text-muted">
-        Select a driver to view telemetry analytics.
-      </div>
-    );
-  }
+  const tabs: { id: WorkbenchTab; label: string; icon: React.ElementType }[] = [
+    { id: "telemetry", label: "TELEMETRY", icon: Activity },
+    { id: "laps", label: "LAP COMPARISON", icon: Timer },
+    { id: "race-control", label: "RACE CONTROL", icon: Radio },
+    { id: "strategy", label: "STRATEGY", icon: Layers },
+  ];
 
   return (
-    <div className="rounded-xl border border-border bg-panel p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <button
-          onClick={() => setExpanded((e) => !e)}
-          className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-muted hover:text-white"
-          aria-expanded={expanded}
-          aria-controls="analytics-dashboard-content"
-        >
-          {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-          Telemetry Analytics
-        </button>
-
-        {expanded && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant={comparisonEnabled ? "default" : "outline"}
-              onClick={() => setPreference("comparisonMode", !comparisonEnabled)}
-              aria-pressed={comparisonEnabled}
-            >
-              Compare drivers
-            </Button>
-
-            {comparisonEnabled && (
-              <Select value={compareDriver ?? undefined} onValueChange={setCompareDriver}>
-                <SelectTrigger className="h-8 w-32 text-xs" aria-label="Comparison driver">
-                  <SelectValue placeholder="2nd driver" />
-                </SelectTrigger>
-                <SelectContent>
-                  {otherDrivers.map((d) => (
-                    <SelectItem key={d.abbreviation} value={d.abbreviation}>
-                      {d.abbreviation} — {d.teamName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+    <div className="flex flex-col rounded-sm border border-pitwall-hairline bg-pitwall-dock select-none">
+      {/* Workbench Header & Navigation Deck */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 border-b border-pitwall-hairline/80 bg-pitwall-dock">
+        {/* Left: Workbench Identifier & Driver Spotlight */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setExpanded((prev) => !prev)}
+            className="flex items-center gap-1.5 font-display text-[11px] font-black uppercase tracking-wider text-pitwall-text hover:text-pitwall-telemetry transition-colors"
+            aria-expanded={expanded}
+            aria-label="Toggle analytics workbench"
+            title={expanded ? "Collapse workbench" : "Expand workbench"}
+          >
+            {expanded ? (
+              <ChevronDown className="h-4 w-4 text-pitwall-telemetry" />
+            ) : (
+              <ChevronUp className="h-4 w-4 text-pitwall-text-muted" />
             )}
+            <span>ANALYTICS WORKBENCH</span>
+          </button>
 
-            <Button
-              size="icon" variant="outline"
-              onClick={() => setPreference("compactMode", !compact)}
-              title={compact ? "Expand charts" : "Compact mode"}
-              aria-pressed={compact}
-              aria-label={compact ? "Expand charts" : "Compact mode"}
-            >
-              {compact ? <Rows3 className="h-4 w-4" /> : <List className="h-4 w-4" />}
-            </Button>
+          {/* Active Driver Pill */}
+          {driverData ? (
+            <div className="flex items-center gap-1 rounded bg-pitwall-surface px-2 py-0.5 border border-pitwall-hairline">
+              <span
+                className="h-2 w-1 rounded-xs"
+                style={{ backgroundColor: driverData.teamColor }}
+              />
+              <span className="font-display text-[10px] font-bold text-pitwall-text">
+                {driverData.abbreviation}
+              </span>
+              <span className="font-telemetry text-[9px] text-pitwall-text-muted">
+                #{driverData.driverNumber}
+              </span>
+            </div>
+          ) : (
+            <span className="font-display text-[10px] text-pitwall-text-muted uppercase">
+              No Driver Selected
+            </span>
+          )}
 
-            <Button
-              size="icon" variant="outline" onClick={handleExportCSV}
-              title="Export telemetry as CSV" aria-label="Export telemetry as CSV"
-            >
-              <Download className="h-4 w-4" />
-            </Button>
+          {/* Replay Time Sync Indicator */}
+          <div className="hidden sm:flex items-center gap-1 font-telemetry text-[9px] text-pitwall-text-muted bg-pitwall-surface/60 px-1.5 py-0.5 rounded border border-pitwall-hairline/50">
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                playing ? "bg-pitwall-drs animate-pulse" : "bg-pitwall-telemetry"
+              )}
+            />
+            <span>SYNCED: {formatRaceTime(currentTimestamp)}</span>
           </div>
-        )}
+        </div>
+
+        {/* Center: Four Tab Navigation Switches */}
+        <div className="flex items-center gap-0.5 rounded bg-pitwall-surface p-0.5 border border-pitwall-hairline">
+          {tabs.map(({ id, label, icon: Icon }) => {
+            const isActive = activeTab === id;
+            return (
+              <button
+                key={id}
+                onClick={() => {
+                  setActiveTab(id);
+                  if (!expanded) setExpanded(true);
+                }}
+                className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded font-display text-[10px] font-bold tracking-wider uppercase transition-all",
+                  isActive
+                    ? "bg-pitwall-elevated text-pitwall-telemetry border border-pitwall-telemetry/40 shadow-xs"
+                    : "text-pitwall-text-muted hover:text-pitwall-text hover:bg-pitwall-dock/60"
+                )}
+                aria-selected={isActive}
+                role="tab"
+              >
+                <Icon
+                  className={cn(
+                    "h-3 w-3",
+                    isActive ? "text-pitwall-telemetry" : "text-pitwall-text-muted"
+                  )}
+                />
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Right: Quick Context / Status */}
+        <div className="flex items-center gap-2">
+          {race?.event && (
+            <span className="hidden md:inline font-display text-[10px] text-pitwall-text-muted uppercase tracking-wider">
+              {race.event} {race.year > 0 ? race.year : "DEMO"}
+            </span>
+          )}
+        </div>
       </div>
 
+      {/* Workbench Content Area */}
       <AnimatePresence initial={false}>
         {expanded && (
           <motion.div
-            id="analytics-dashboard-content"
+            id="analytics-workbench-content"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: "easeInOut" }}
+            transition={{ duration: 0.18, ease: "easeInOut" }}
             className="overflow-hidden"
           >
-          <div className="mt-3 flex flex-col gap-3">
-            <div className={compact ? "grid grid-cols-1 gap-2 md:grid-cols-2" : "grid grid-cols-1 gap-3 lg:grid-cols-2"}>
-            <TelemetryChart
-              title="Speed" unit="km/h" dataKey="speed" variant="line"
-              primary={primaryChartSeries} compare={compareChartSeries}
-              cursorTime={currentTimestamp} zoomIndices={zoomIndices}
-              onZoomIndicesChange={setZoomIndices} onSeek={handleSeek}
-              yDomain={[0, 360]} showBrush compact={compact}
-            />
-            <TelemetryChart
-              title="Throttle" unit="%" dataKey="throttle" variant="area"
-              primary={primaryChartSeries} compare={compareChartSeries}
-              cursorTime={currentTimestamp} zoomIndices={zoomIndices}
-              onZoomIndicesChange={setZoomIndices} onSeek={handleSeek}
-              yDomain={[0, 100]} compact={compact}
-            />
-            <TelemetryChart
-              title="Brake (on/off)" dataKey="brake" variant="step"
-              primary={primaryChartSeries} compare={compareChartSeries}
-              cursorTime={currentTimestamp} zoomIndices={zoomIndices}
-              onZoomIndicesChange={setZoomIndices} onSeek={handleSeek}
-              yDomain={[0, 100]} yTicks={[0, 100]} compact={compact}
-            />
-            <TelemetryChart
-              title="RPM" dataKey="rpm" variant="line"
-              primary={primaryChartSeries} compare={compareChartSeries}
-              cursorTime={currentTimestamp} zoomIndices={zoomIndices}
-              onZoomIndicesChange={setZoomIndices} onSeek={handleSeek}
-              yDomain={[0, RPM_MAX]} redlineFrom={RPM_MAX * 0.88} compact={compact}
-            />
-            <TelemetryChart
-              title="Gear" dataKey="gear" variant="step"
-              primary={primaryChartSeries} compare={compareChartSeries}
-              cursorTime={currentTimestamp} zoomIndices={zoomIndices}
-              onZoomIndicesChange={setZoomIndices} onSeek={handleSeek}
-              yDomain={[0, 8]} yTicks={[0, 1, 2, 3, 4, 5, 6, 7, 8]} compact={compact}
-            />
+            <div className="p-2.5 bg-pitwall-dock/95">
+              {activeTab === "telemetry" && (
+                <TelemetryTracesView race={race} onSeek={onSeek} />
+              )}
+              {activeTab === "laps" && (
+                <LapComparisonView race={race} onSeek={onSeek} />
+              )}
+              {activeTab === "race-control" && (
+                <RaceControlView
+                  race={race}
+                  intelligence={intelligence}
+                  isLoading={isLoadingIntelligence}
+                  onSeek={onSeek}
+                />
+              )}
+              {activeTab === "strategy" && (
+                <StrategyView race={race} onSeek={onSeek} />
+              )}
             </div>
-
-            <div className="grid grid-cols-1 gap-2 border-t border-border pt-3 sm:grid-cols-2 lg:grid-cols-4">
-            {UNAVAILABLE_ANALYTICS.map((item) => (
-              <div
-                key={item.title}
-                className="flex flex-col gap-1 rounded-lg border border-border bg-black/20 p-2 opacity-60"
-              >
-                <span className="flex items-center gap-1 text-[11px] font-bold">
-                  <Lock className="h-3 w-3" /> {item.title}
-                </span>
-                <span className="text-[10px] leading-tight text-muted">{item.reason}</span>
-              </div>
-            ))}
-            </div>
-
-            <p className="text-[10px] leading-tight text-muted/70">
-              Click a chart to seek, drag to scrub, double-click to reset zoom, or drag the
-              handles under the Speed chart — all charts zoom together. Brake is shown as
-              on/off (the pipeline only has a boolean flag, not pressure). RPM&apos;s redline
-              band assumes a 12,000 RPM scale for visualization only.
-            </p>
-          </div>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
   );
-}
+});

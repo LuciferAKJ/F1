@@ -113,20 +113,32 @@ export function TelemetryChart({
           onMouseDown={handleDown}
           onMouseMove={handleMove}
         >
-          <CartesianGrid stroke="#222" strokeDasharray="3 3" />
+          <CartesianGrid stroke="#283541" strokeDasharray="3 3" />
           <XAxis
             dataKey="t"
             type="number"
             domain={domain}
             tickFormatter={formatTime}
-            stroke="#666"
+            stroke="#95A3AF"
             fontSize={10}
             allowDataOverflow
           />
-          <YAxis domain={yDomain ?? ["auto", "auto"]} ticks={yTicks} stroke="#666" fontSize={10} width={34} />
+          <YAxis
+            domain={yDomain ?? ["auto", "auto"]}
+            ticks={yTicks}
+            tickFormatter={dataKey === "brake" ? (v) => (v >= 50 ? "ON" : "OFF") : undefined}
+            stroke="#95A3AF"
+            fontSize={10}
+            width={34}
+          />
           <Tooltip
-            contentStyle={{ background: "#141414", border: "1px solid #262626", fontSize: 11 }}
+            contentStyle={{ background: "#111820", border: "1px solid #283541", color: "#EAF0F5", fontSize: 11 }}
             labelFormatter={(v) => formatTime(Number(v))}
+            formatter={(value) =>
+              dataKey === "brake"
+                ? [Number(value) >= 50 ? "BRAKE ON" : "BRAKE OFF", undefined]
+                : [value, undefined]
+            }
           />
 
           {redlineFrom !== undefined && yDomain && (
@@ -158,13 +170,13 @@ export function TelemetryChart({
             />
           )}
 
-          <ReferenceLine x={cursorTime} stroke="#ffffff" strokeWidth={1.5} strokeOpacity={0.8} />
+          <ReferenceLine x={cursorTime} stroke="#00C8E8" strokeWidth={1.5} strokeOpacity={0.9} />
 
           {showBrush && (
             <Brush
               dataKey="t"
               height={16}
-              stroke="#DA291C"
+              stroke="#E10600"
               travellerWidth={8}
               startIndex={zoomIndices ? zoomIndices[0] : 0}
               endIndex={zoomIndices ? zoomIndices[1] : Math.max(merged.length - 1, 0)}

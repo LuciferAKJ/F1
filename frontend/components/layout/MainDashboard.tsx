@@ -9,25 +9,16 @@ import { useReplayWebSocket } from "@/hooks/useReplayWebSocket";
 import { useReplayFrameAt } from "@/hooks/useReplayFrameAt";
 import { useRaceIntelligence } from "@/hooks/useRaceIntelligence";
 import { usePreferences } from "@/hooks/usePreferences";
+import { Navbar } from "@/components/layout/Navbar";
 import { LeftSidebar } from "@/components/layout/LeftSidebar";
 import { CenterReplay } from "@/components/layout/CenterReplay";
 import { RightSidebar } from "@/components/layout/RightSidebar";
 import { BottomControls } from "@/components/layout/BottomControls";
-import { TimelineMarkers } from "@/components/timeline/TimelineMarkers";
 import { Skeleton } from "@/components/ui/skeleton";
 
-// Both panels pull in Recharts and start collapsed — deferring their code
-// (and the heavy analysis hook's first render) off the initial bundle.
+// Dynamic import for the unified analytics workbench
 const AnalyticsDashboard = dynamic(
   () => import("@/components/analytics/AnalyticsDashboard").then((m) => m.AnalyticsDashboard),
-  { ssr: false, loading: () => <Skeleton className="h-12 w-full" /> }
-);
-const RaceIntelligencePanel = dynamic(
-  () => import("@/components/timeline/RaceIntelligencePanel").then((m) => m.RaceIntelligencePanel),
-  { ssr: false, loading: () => <Skeleton className="h-12 w-full" /> }
-);
-const RaceInsightsPanel = dynamic(
-  () => import("@/components/insights/RaceInsightsPanel").then((m) => m.RaceInsightsPanel),
   { ssr: false, loading: () => <Skeleton className="h-12 w-full" /> }
 );
 
@@ -101,26 +92,22 @@ export function MainDashboard({ race }: MainDashboardProps) {
   }, [playbackSpeed, setPreference]);
 
   return (
-    <div className="flex h-screen w-screen animate-fade-in flex-col overflow-hidden">
-      <div className="flex flex-1 overflow-hidden">
+    <div className="flex h-screen w-screen animate-fade-in flex-col overflow-hidden bg-pitwall-canvas text-pitwall-text font-body select-none">
+      <Navbar />
+      <div className="flex flex-1 min-h-0 w-full overflow-hidden flex-row">
         <LeftSidebar />
         <CenterReplay />
         <RightSidebar />
       </div>
-      <div className="max-h-[45vh] shrink-0 overflow-y-auto px-3 pt-2">
-        <div className="flex flex-col gap-3">
-          <AnalyticsDashboard race={selectedRace} onSeek={ws.seek} />
-          <RaceIntelligencePanel
-            race={selectedRace}
-            intelligence={intelligence}
-            isLoading={intelligenceLoading}
-            onSeek={ws.seek}
-          />
-          <RaceInsightsPanel race={selectedRace} intelligence={intelligence} onSeek={ws.seek} />
-        </div>
+      <div className="max-h-[38vh] shrink-0 overflow-y-auto bg-pitwall-dock border-t border-pitwall-hairline px-3 py-1.5">
+        <AnalyticsDashboard
+          race={selectedRace}
+          onSeek={ws.seek}
+          intelligence={intelligence}
+          isLoadingIntelligence={intelligenceLoading}
+        />
       </div>
-      <TimelineMarkers intelligence={intelligence} onSeek={ws.seek} />
-      <BottomControls onSeek={ws.seek} />
+      <BottomControls onSeek={ws.seek} intelligence={intelligence} />
     </div>
   );
 }

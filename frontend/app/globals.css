@@ -2,6 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* --- Stitch "Pit-Wall Telemetry Workstation" CSS Custom Properties --- */
+  --pitwall-canvas: #090C10;
+  --pitwall-dock: #111820;
+  --pitwall-surface: #18212A;
+  --pitwall-elevated: #1F2A36;
+  --pitwall-hairline: #283541;
+  --pitwall-divider: #1C2530;
+  --pitwall-signal: #E10600;
+  --pitwall-telemetry: #00C8E8;
+  --pitwall-telemetry-light: #62E2FF;
+  --pitwall-drs: #37D67A;
+  --pitwall-drs-light: #46E183;
+  --pitwall-sector: #B138DD;
+  --pitwall-warning: #FFB020;
+  --pitwall-safety-car: #FF8C00;
+  --pitwall-text: #EAF0F5;
+  --pitwall-text-muted: #95A3AF;
+
+  /* Typography Fallbacks */
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-telemetry: "Space Mono", "JetBrains Mono", ui-monospace, monospace;
+  --font-body: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
 html, body {
   background-color: #0b0b0b;
   color: #eaeaea;
@@ -10,18 +35,19 @@ html, body {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #333 #141414;
+  scrollbar-color: #283541 #111820;
 }
 
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: #141414; }
-::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #111820; }
+::-webkit-scrollbar-thumb { background: #283541; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #3b4b5c; }
 
 /* Consistent, visible focus ring for keyboard navigation across all interactive elements. */
 :focus-visible {
-  outline: 2px solid #da291c;
+  outline: 2px solid #E10600;
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 button, a {
@@ -44,4 +70,70 @@ button, a {
 
 .animate-fade-in {
   animation: fade-in 220ms ease-out;
+}
+
+@layer utilities {
+  /* Tabular numbers for telemetry, timing, and speed readouts to prevent horizontal jitter */
+  .font-tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  /* Technical uppercase micro-label for telemetry channels and timing headers */
+  .pitwall-label {
+    font-family: var(--font-display);
+    font-size: 0.6875rem; /* 11px */
+    line-height: 0.875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--pitwall-text-muted);
+  }
+
+  /* Monospaced numeric readout for timers, speeds, gears, RPM, and deltas */
+  .pitwall-metric {
+    font-family: var(--font-telemetry);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    font-weight: 700;
+  }
+
+  /* Hairline structural separators (1px crisp borders) */
+  .pitwall-hairline {
+    border-color: var(--pitwall-hairline);
+  }
+
+  .pitwall-divider {
+    border-color: var(--pitwall-divider);
+  }
+
+  /* Flush dock surface tile (anti-glare dark composite with hairline border) */
+  .pitwall-dock-surface {
+    background-color: var(--pitwall-dock);
+    border: 1px solid var(--pitwall-hairline);
+  }
+
+  /* Secondary surface panel (nested cards, instrument wells, table headers) */
+  .pitwall-panel-surface {
+    background-color: var(--pitwall-surface);
+    border: 1px solid var(--pitwall-hairline);
+  }
+
+  /* Elevated hover/active surface */
+  .pitwall-elevated-surface {
+    background-color: var(--pitwall-elevated);
+    border: 1px solid var(--pitwall-hairline);
+  }
+
+  /* Compact timing ladder row (high data density with zero-jitter tabular numerals) */
+  .pitwall-timing-row {
+    display: flex;
+    align-items: center;
+    height: 1.75rem; /* 28px dense height */
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    border-bottom: 1px solid var(--pitwall-divider);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
 }
