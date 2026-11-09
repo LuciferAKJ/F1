@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Demo Replay & Fallback Flow", () => {
   test.setTimeout(120_000);
+
   const mockMetadata = {
     info: {
       year: 0,
@@ -56,6 +57,60 @@ test.describe("Demo Replay & Fallback Flow", () => {
     isDemo: true,
   };
 
+  let pageErrors: Error[] = [];
+  let unexpectedConsoleErrors: string[] = [];
+
+  test.beforeEach(async ({ page }) => {
+    pageErrors = [];
+    unexpectedConsoleErrors = [];
+
+    // Capture uncaught page errors
+    page.on("pageerror", (error) => {
+      pageErrors.push(error);
+      console.error(`[BROWSER UNCAUGHT PAGEERROR]: ${error.message}\n${error.stack || ""}`);
+    });
+
+    // Record console errors, distinguishing expected fixture responses (e.g. 404 test scenarios)
+    page.on("console", (msg) => {
+      if (msg.type() === "error") {
+        const text = msg.text();
+        const isExpectedFixtureError =
+          text.includes("404") ||
+          text.includes("Failed to load resource") ||
+          text.includes("Formula 1 restricted unauthenticated access");
+
+        if (!isExpectedFixtureError) {
+          unexpectedConsoleErrors.push(text);
+          console.error(`[BROWSER CONSOLE ERROR]: ${text}`);
+        } else {
+          console.log(`[BROWSER EXPECTED CONSOLE MSG]: ${text}`);
+        }
+      }
+    });
+
+    // Mock WebSocket connection to avoid connection-refused errors against localhost:8000
+    await page.routeWebSocket("**/ws/replay/**", (ws) => {
+      ws.onMessage((message) => {
+        try {
+          const payload = typeof message === "string" ? JSON.parse(message) : JSON.parse(message.toString());
+          if (payload.action === "play") {
+            // Supply next frame from fixture if requested
+            if (mockReplay.frames[1]) {
+              ws.send(JSON.stringify({ type: "frame", frame: mockReplay.frames[1] }));
+            }
+          }
+        } catch {
+          // Ignore parse errors from non-JSON messages
+        }
+      });
+    });
+  });
+
+  test.afterEach(async () => {
+    // Assert no uncaught application errors occurred during test execution
+    expect(pageErrors, `Uncaught page errors occurred: ${pageErrors.map((e) => e.message).join("; ")}`).toEqual([]);
+  });
+
   test("loads /replay/demo, renders canvas, DEMO DATA badge, drivers, and controls", async ({ page }) => {
     await page.route("**/api/replay/**", async (route) => {
       const url = route.request().url();
@@ -108,20 +163,35 @@ test.describe("Demo Replay & Fallback Flow", () => {
     await overviewBtn.click();
     await expect(page.getByText(/Following: VER/i)).not.toBeVisible();
 
-    // 4. Test Play/Pause toggle
+    // 4. Test Play/Pause toggle with explicit state verification
     const playPauseBtn = page.getByRole("button", { name: /^(Play|Pause) replay/i }).first();
     await expect(playPauseBtn).toBeVisible({ timeout: 10_000 });
+    // Verify initially paused
+    await expect(playPauseBtn).toHaveAttribute("aria-pressed", "false");
+
+    // Click to start playing
     await playPauseBtn.click();
+    // Verify state transitioned to playing
+    await expect(playPauseBtn).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: /Pause replay/i }).first()).toBeVisible();
+
+    // Click again to pause
+    await playPauseBtn.click();
+    // Verify state transitioned back to paused
+    await expect(playPauseBtn).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByRole("button", { name: /Play replay/i }).first()).toBeVisible();
 
     // 5. Test speed controls (1x, 2x, 4x)
     const speed2xBtn = page.getByRole("button", { name: "2x" });
     if (await speed2xBtn.isVisible()) {
       await speed2xBtn.click();
+      await expect(speed2xBtn).toHaveAttribute("aria-pressed", "true");
       await expect(page.getByText("Speed x2")).toBeVisible();
     }
     const speed4xBtn = page.getByRole("button", { name: "4x" });
     if (await speed4xBtn.isVisible()) {
       await speed4xBtn.click();
+      await expect(speed4xBtn).toHaveAttribute("aria-pressed", "true");
       await expect(page.getByText("Speed x4")).toBeVisible();
     }
 
@@ -147,7 +217,6 @@ test.describe("Demo Replay & Fallback Flow", () => {
   });
 
   test("displays authentication error card on restricted session and navigates to demo", async ({ page }) => {
-    page.on("console", (msg) => console.log(`[BROWSER ${msg.type()}]:`, msg.text()));
     await page.route("**/api/replay/**", async (route) => {
       const url = route.request().url();
       if (url.includes("/2026/")) {
