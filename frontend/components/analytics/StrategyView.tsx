@@ -299,4 +299,3 @@ export const StrategyView = memo(function StrategyView({ race, onSeek }: Strateg
     </div>
   );
 });
-

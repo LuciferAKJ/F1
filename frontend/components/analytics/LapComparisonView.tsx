@@ -403,4 +403,3 @@ export const LapComparisonView = memo(function LapComparisonView({
     </div>
   );
 });
-

@@ -220,4 +220,3 @@ describe("BottomControls Playback Transport & Two-Tier Timeline", () => {
     expect(onSeek).toHaveBeenCalledWith(0);
   });
 });
-

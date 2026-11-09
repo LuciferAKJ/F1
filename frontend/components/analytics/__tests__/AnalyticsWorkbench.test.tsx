@@ -260,4 +260,3 @@ describe("Interactive Analytics Workbench", () => {
     expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
   });
 });
-

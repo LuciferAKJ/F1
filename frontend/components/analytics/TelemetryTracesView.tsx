@@ -352,4 +352,3 @@ export const TelemetryTracesView = memo(function TelemetryTracesView({
     </div>
   );
 });
-
