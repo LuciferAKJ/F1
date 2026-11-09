@@ -347,7 +347,7 @@ export const TelemetryTracesView = memo(function TelemetryTracesView({
 
       <div className="flex items-center justify-between text-[9px] text-pitwall-text-muted/60 font-body px-1">
         <span>Click chart or drag scrubber to seek replay time. Double-click any chart to reset zoom range.</span>
-        <span>Telemetry density: FastF1 frame stream (~0.5s interval). Brake is binary pressure detection.</span>
+        <span>Telemetry density: FastF1 frame stream (~0.5s interval). Brake is a binary state channel (BRAKE ON / OFF).</span>
       </div>
     </div>
   );

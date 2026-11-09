@@ -112,7 +112,7 @@ export function BottomControls({ onSeek, intelligence }: BottomControlsProps) {
         id: `fl-${e.id}`,
         timestamp: e.timestamp,
         kind: "fastest-lap",
-        tooltip: `FASTEST LAP · ${e.driver} (${e.lapTime.toFixed(3)}s, Lap ${e.lap})`,
+        tooltip: `FASTEST LAP (EST.) · ${e.driver} (${e.lapTime.toFixed(3)}s, Lap ${e.lap})`,
         driver: e.driver,
         lap: e.lap,
       });

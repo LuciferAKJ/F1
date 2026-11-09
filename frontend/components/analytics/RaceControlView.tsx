@@ -96,7 +96,7 @@ export const RaceControlView = memo(function RaceControlView({
         lap: fl.lap,
         kind: "fastest-lap",
         title: `NEW FASTEST LAP`,
-        detail: `${fl.driver} clocked ${m}:${s} (Lap ${fl.lap})`,
+        detail: `${fl.driver} clocked ${m}:${s} (est. Lap ${fl.lap})`,
         driver: fl.driver,
       });
     }

@@ -96,7 +96,7 @@ describe("TelemetryPanel", () => {
     expect(screen.getByText("PEAK:")).toBeInTheDocument();
   });
 
-  it("displays binary brake OFF and NO PRESSURE when driver is not braking", () => {
+  it("displays binary brake OFF state when driver is not braking", () => {
     useReplayStore.setState({
       selectedDriver: "VER",
       currentFrame: TEST_FRAME,
@@ -105,11 +105,10 @@ describe("TelemetryPanel", () => {
     });
 
     render(<TelemetryPanel />);
-    expect(screen.getByText("OFF (0%)")).toBeInTheDocument();
-    expect(screen.getByText("NO PRESSURE")).toBeInTheDocument();
+    expect(screen.getAllByText("BRAKE OFF").length).toBeGreaterThan(0);
   });
 
-  it("displays binary brake ACTIVE and PRESSURE DETECTED when driver is braking", () => {
+  it("displays binary brake ON state when driver is braking", () => {
     useReplayStore.setState({
       selectedDriver: "NOR",
       currentFrame: TEST_FRAME,
@@ -118,8 +117,7 @@ describe("TelemetryPanel", () => {
     });
 
     render(<TelemetryPanel />);
-    expect(screen.getByText("ACTIVE (100%)")).toBeInTheDocument();
-    expect(screen.getByText("PRESSURE DETECTED")).toBeInTheDocument();
+    expect(screen.getAllByText("BRAKE ON").length).toBeGreaterThan(0);
     expect(screen.getByText("DRS CLSD")).toBeInTheDocument();
   });
 

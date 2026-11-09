@@ -186,7 +186,7 @@ describe("BottomControls Playback Transport & Two-Tier Timeline", () => {
     expect(onSeek).toHaveBeenCalledWith(12.0);
     expect(useReplayStore.getState().selectedDriver).toBe("VER");
 
-    const fastestLapMarker = screen.getByRole("button", { name: /FASTEST LAP · NOR/i });
+    const fastestLapMarker = screen.getByRole("button", { name: /FASTEST LAP.*NOR/i });
     expect(fastestLapMarker).toBeInTheDocument();
 
     fireEvent.click(fastestLapMarker);

@@ -297,7 +297,7 @@ const ControlInputs = memo(function ControlInputs({
               brake ? "text-pitwall-signal animate-pulse" : "text-pitwall-text-muted"
             )}
           >
-            {brake ? "ACTIVE (100%)" : "OFF (0%)"}
+            {brake ? "BRAKE ON" : "BRAKE OFF"}
           </span>
         </div>
         <div className="h-2 w-full overflow-hidden rounded-[1px] bg-pitwall-canvas border border-pitwall-hairline/60">
@@ -309,14 +309,14 @@ const ControlInputs = memo(function ControlInputs({
           />
         </div>
         <div className="mt-1 flex items-center justify-between font-mono text-[9px] text-pitwall-text-muted/70">
-          <span>PIPELINE: BOOLEAN ON/OFF</span>
+          <span>PIPELINE: BOOLEAN STATE</span>
           <span
             className={cn(
               "font-bold px-1.5 py-0.5 rounded-[2px]",
               brake ? "bg-pitwall-signal/20 text-pitwall-signal border border-pitwall-signal/40" : "bg-pitwall-elevated text-pitwall-text-muted/60"
             )}
           >
-            {brake ? "PRESSURE DETECTED" : "NO PRESSURE"}
+            {brake ? "BRAKE ON" : "BRAKE OFF"}
           </span>
         </div>
       </div>
