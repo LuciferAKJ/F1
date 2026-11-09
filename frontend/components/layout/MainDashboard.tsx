@@ -14,7 +14,6 @@ import { LeftSidebar } from "@/components/layout/LeftSidebar";
 import { CenterReplay } from "@/components/layout/CenterReplay";
 import { RightSidebar } from "@/components/layout/RightSidebar";
 import { BottomControls } from "@/components/layout/BottomControls";
-import { TimelineMarkers } from "@/components/timeline/TimelineMarkers";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Both panels pull in Recharts and start collapsed — deferring their code
@@ -121,8 +120,7 @@ export function MainDashboard({ race }: MainDashboardProps) {
           <RaceInsightsPanel race={selectedRace} intelligence={intelligence} onSeek={ws.seek} />
         </div>
       </div>
-      <TimelineMarkers intelligence={intelligence} onSeek={ws.seek} />
-      <BottomControls onSeek={ws.seek} />
+      <BottomControls onSeek={ws.seek} intelligence={intelligence} />
     </div>
   );
 }
