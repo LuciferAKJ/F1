@@ -10,6 +10,10 @@ export interface TelemetryPoint {
   brake: number; // 0 or 100 — derived from the pipeline's boolean brake flag, not a real pressure %
   rpm: number;
   gear: number;
+  drs?: number;
+  lap?: number;
+  sector?: number;
+  tyre?: string;
 }
 
 /**
@@ -34,8 +38,16 @@ export function useDriverSeries(race: SelectedRace | null, driverAbbr: string | 
       const d = frame.drivers[0];
       if (!d) continue;
       points.push({
-        t: frame.timestamp, speed: d.speed, throttle: d.throttle,
-        brake: d.brake ? 100 : 0, rpm: d.rpm, gear: d.gear,
+        t: frame.timestamp,
+        speed: d.speed,
+        throttle: d.throttle,
+        brake: d.brake ? 100 : 0,
+        rpm: d.rpm,
+        gear: d.gear,
+        drs: d.drs,
+        lap: d.lap,
+        sector: d.sector,
+        tyre: d.tyre,
       });
     }
     return points;
