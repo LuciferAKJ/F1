@@ -11,8 +11,10 @@ type ServerMessage =
   | { type: "frame"; frame: RawReplayFrame }
   | { type: "error"; message: string };
 
-const MAX_RECONNECT_ATTEMPTS = 3;
-const BASE_RECONNECT_DELAY_MS = 2000;
+export const MAX_RECONNECT_ATTEMPTS = 3;
+export const MAX_TOTAL_RECONNECT_ATTEMPTS = 5;
+export const BASE_RECONNECT_DELAY_MS = 2000;
+export const STABLE_CONNECTION_DELAY_MS = 5000;
 
 /** Owns the WebSocket connection for one selected race and keeps the Zustand store
  * in sync: incoming "frame" messages push into the store; outgoing actions mirror
@@ -20,7 +22,9 @@ const BASE_RECONNECT_DELAY_MS = 2000;
 export function useReplayWebSocket(race: SelectedRace | null) {
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const reconnectAttemptsRef = useRef(0);
+  const stabilityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const consecutiveAttemptsRef = useRef(0);
+  const totalAttemptsRef = useRef(0);
   const pushFrame = useReplayStore((s) => s.pushFrame);
 
   const playing = useReplayStore((s) => s.playing);
@@ -44,6 +48,9 @@ export function useReplayWebSocket(race: SelectedRace | null) {
     const currentRace = race;
     let isCancelled = false;
 
+    consecutiveAttemptsRef.current = 0;
+    totalAttemptsRef.current = 0;
+
     function connect() {
       if (isCancelled) return;
       try {
@@ -53,12 +60,24 @@ export function useReplayWebSocket(race: SelectedRace | null) {
 
         socket.onopen = () => {
           if (isCancelled) return;
-          reconnectAttemptsRef.current = 0;
-          // Synchronize initial playback state upon connection
-          send({ action: playing ? "play" : "pause" });
-          send({ action: "speed", value: playbackSpeed });
-          if (currentTimestamp > 0) {
-            send({ action: "seek", time: currentTimestamp });
+
+          // Clear any pending stability timeout
+          if (stabilityTimeoutRef.current) {
+            clearTimeout(stabilityTimeoutRef.current);
+            stabilityTimeoutRef.current = null;
+          }
+
+          // Mark connection as stable only after sustained healthy duration
+          stabilityTimeoutRef.current = setTimeout(() => {
+            consecutiveAttemptsRef.current = 0;
+          }, STABLE_CONNECTION_DELAY_MS);
+
+          // Synchronize the latest playback state from store (avoids stale closures)
+          const state = useReplayStore.getState();
+          send({ action: state.playing ? "play" : "pause" });
+          send({ action: "speed", value: state.playbackSpeed });
+          if (state.currentTimestamp > 0) {
+            send({ action: "seek", time: state.currentTimestamp });
           }
         };
 
@@ -81,11 +100,26 @@ export function useReplayWebSocket(race: SelectedRace | null) {
 
         socket.onclose = (event) => {
           if (isCancelled) return;
-          // Bounded reconnect on abnormal closure (e.g. temporary server restart)
-          if (!event.wasClean && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
-            reconnectAttemptsRef.current += 1;
-            const delay = BASE_RECONNECT_DELAY_MS * Math.pow(1.5, reconnectAttemptsRef.current - 1);
+
+          // Cancel the stability timer if connection dropped before reaching stability
+          if (stabilityTimeoutRef.current) {
+            clearTimeout(stabilityTimeoutRef.current);
+            stabilityTimeoutRef.current = null;
+          }
+
+          // Bounded reconnect on abnormal closure
+          const canRetryConsecutive = consecutiveAttemptsRef.current < MAX_RECONNECT_ATTEMPTS;
+          const canRetryTotal = totalAttemptsRef.current < MAX_TOTAL_RECONNECT_ATTEMPTS;
+
+          if (!event.wasClean && canRetryConsecutive && canRetryTotal) {
+            consecutiveAttemptsRef.current += 1;
+            totalAttemptsRef.current += 1;
+            const delay = BASE_RECONNECT_DELAY_MS * Math.pow(1.5, consecutiveAttemptsRef.current - 1);
             reconnectTimeoutRef.current = setTimeout(connect, delay);
+          } else if (!event.wasClean) {
+            console.warn(
+              `Replay WS reconnect halted: reached maximum retry limit (consecutive: ${consecutiveAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS}, total: ${totalAttemptsRef.current}/${MAX_TOTAL_RECONNECT_ATTEMPTS})`
+            );
           }
         };
       } catch (connErr) {
@@ -97,6 +131,10 @@ export function useReplayWebSocket(race: SelectedRace | null) {
 
     return () => {
       isCancelled = true;
+      if (stabilityTimeoutRef.current) {
+        clearTimeout(stabilityTimeoutRef.current);
+        stabilityTimeoutRef.current = null;
+      }
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
