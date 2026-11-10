@@ -1,14 +1,14 @@
 "use client";
 
 import { memo, useMemo, useRef } from "react";
-import { ArrowUp, ArrowDown, Minus, Crosshair } from "lucide-react";
+import { ArrowUp, ArrowDown, Minus, Crosshair, PanelLeftClose } from "lucide-react";
 import { useReplayStore } from "@/store/replayStore";
 import { cn } from "@/lib/utils";
 import type { RawReplayFrame } from "@/lib/replayAdapter";
 import type { DriverMetaDTO } from "@/types/api";
 
 /**
- * Formula 1 Pit-Wall Timing Ladder (Stitch Workstation Redesign Phase 3)
+ * Formula 1 Pit-Wall Timing Ladder (Stitch Workstation Redesign)
  *
  * Data Integrity & Honesty:
  * - REAL: Position, lap number, live sector (1/2/3), DRS state (FastF1 codes 10/12/14),
@@ -98,33 +98,45 @@ function useDerivedDriverStats(currentFrame: RawReplayFrame | null) {
         if (d.lap > h.lastLap) {
           const lapTime = currentFrame.timestamp - h.lapStartTimestamp;
           h.lastLapTime = lapTime;
-          h.bestLapTime = h.bestLapTime === null ? lapTime : Math.min(h.bestLapTime, lapTime);
-          h.lapStartTimestamp = currentFrame.timestamp;
+          if (lapTime > 30 && lapTime < 300) {
+            if (h.bestLapTime === null || lapTime < h.bestLapTime) {
+              h.bestLapTime = lapTime;
+            }
+          }
           h.lastLap = d.lap;
+          h.lapStartTimestamp = currentFrame.timestamp;
         }
-        h.tyreAge = d.lap - h.tyreStartLap + 1;
+        h.tyreAge = Math.max(1, d.lap - h.tyreStartLap + 1);
       }
       history.set(d.driverId, h);
-      nextStats.set(d.driverId, { tyreAge: h.tyreAge, lastLapTime: h.lastLapTime, bestLapTime: h.bestLapTime });
 
-      if (h.bestLapTime !== null && h.bestLapTime < bestOverall.time) {
+      if (h.bestLapTime && h.bestLapTime < bestOverall.time) {
         bestOverall = { abbr: d.driverId, time: h.bestLapTime };
       }
+
+      nextStats.set(d.driverId, {
+        tyreAge: h.tyreAge,
+        lastLapTime: h.lastLapTime,
+        bestLapTime: h.bestLapTime,
+      });
     }
 
     lastFrameRef.current = currentFrame;
-    cachedResultRef.current = { stats: nextStats, sessionBestAbbr: bestOverall.abbr };
+    cachedResultRef.current = {
+      stats: nextStats,
+      sessionBestAbbr: bestOverall.abbr,
+    };
     return cachedResultRef.current;
   }, [currentFrame]);
 }
 
 interface TimingLadderRowProps {
   driverId: string;
-  position: number | null;
+  position: number;
   positionDelta: number;
   teamColor: string;
   teamName: string;
-  driverNumber?: string;
+  driverNumber?: number | string;
   lap: number | null;
   sector: number | null;
   tyre: string | null;
@@ -143,7 +155,6 @@ function areRowPropsEqual(prev: TimingLadderRowProps, next: TimingLadderRowProps
     prev.position === next.position &&
     prev.positionDelta === next.positionDelta &&
     prev.teamColor === next.teamColor &&
-    prev.teamName === next.teamName &&
     prev.driverNumber === next.driverNumber &&
     prev.lap === next.lap &&
     prev.sector === next.sector &&
@@ -174,36 +185,42 @@ const TimingLadderRow = memo(function TimingLadderRow({
   onToggleFollow,
 }: TimingLadderRowProps) {
   const drsActive = isDrsOpen(drs);
-  const formattedPos = position !== null ? String(position).padStart(2, "0") : "—";
-  const compoundBg = COMPOUND_COLORS[tyre?.toUpperCase() ?? "UNKNOWN"] ?? "#888888";
+  const compoundBg = COMPOUND_COLORS[tyre?.toUpperCase() ?? "UNKNOWN"] ?? COMPOUND_COLORS.UNKNOWN;
   const compoundTextDark = tyre?.toUpperCase() === "MEDIUM" || tyre?.toUpperCase() === "HARD";
 
   return (
     <div
+      role="row"
+      aria-selected={isSelected}
+      onClick={() => onSelect(driverId)}
       className={cn(
-        "group flex h-7 items-center justify-between border-b border-pitwall-divider px-2 transition-colors",
+        "group relative flex items-center justify-between px-2.5 py-1 text-xs transition-colors cursor-pointer select-none",
         isSelected
-          ? "bg-pitwall-elevated ring-1 ring-pitwall-telemetry/60"
-          : "hover:bg-pitwall-elevated/50 bg-pitwall-dock/40"
+          ? "bg-pitwall-surface border-l-2 border-pitwall-telemetry"
+          : "hover:bg-pitwall-surface/50 border-l-2 border-transparent"
       )}
     >
-      {/* Left: Position, Delta, Team Ribbon, and Driver Selector */}
-      <div className="flex flex-1 min-w-0 items-center gap-1.5 overflow-hidden">
-        {/* Race Position */}
+      {/* Left: Position, Movement Delta, Constructor Color, Driver Identifier */}
+      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+        {/* Position Number (01-20) */}
         <span
           className={cn(
-            "w-5 shrink-0 text-center font-telemetry font-bold text-xs font-tabular",
-            position === 1 ? "text-pitwall-drs" : "text-pitwall-text"
+            "w-5 text-center font-display font-black text-xs tabular-nums shrink-0",
+            position === 1
+              ? "text-amber-400"
+              : position <= 3
+              ? "text-pitwall-text"
+              : "text-pitwall-text-muted"
           )}
         >
-          {formattedPos}
+          {String(position).padStart(2, "0")}
         </span>
 
         {/* Position Delta vs Previous Frame */}
         <span className="flex w-2.5 shrink-0 justify-center" title="Position delta vs previous frame">
           {positionDelta > 0 && <ArrowUp className="h-3 w-3 text-pitwall-drs" />}
           {positionDelta < 0 && <ArrowDown className="h-3 w-3 text-pitwall-signal" />}
-          {positionDelta === 0 && <Minus className="h-2 w-2 text-pitwall-text-muted/30" />}
+          {positionDelta === 0 && <Minus className="h-2 w-2 text-pitwall-text-muted/20" />}
         </span>
 
         {/* Official Constructor Ribbon */}
@@ -237,8 +254,8 @@ const TimingLadderRow = memo(function TimingLadderRow({
         </button>
       </div>
 
-      {/* Right: Sector, Lap, Tyre Badge + Age, DRS Indicator, and Explicit Follow Button */}
-      <div className="flex shrink-0 items-center gap-1.5">
+      {/* Right: Sector, Lap, Tyre Badge + Age, DRS Indicator, and Follow Button */}
+      <div className="flex shrink-0 items-center gap-2">
         {/* Live Sector Split (1, 2, 3) */}
         {sector !== null && (
           <span className="hidden md:flex items-center gap-0.5" title={`Currently in Sector ${sector}`}>
@@ -256,7 +273,7 @@ const TimingLadderRow = memo(function TimingLadderRow({
 
         {/* Current Lap */}
         <span
-          className="w-7 text-right font-telemetry text-[10px] text-pitwall-text-muted font-tabular"
+          className="w-6 text-right font-telemetry text-[10px] text-pitwall-text-muted font-tabular"
           title={lap !== null ? `Lap ${lap}` : "Lap unknown"}
         >
           {lap !== null ? `L${lap}` : "—"}
@@ -285,17 +302,18 @@ const TimingLadderRow = memo(function TimingLadderRow({
           </span>
         </div>
 
-        {/* DRS Active Indicator */}
-        <span
-          className={cn(
-            "rounded px-1 py-0.2 font-telemetry text-[9px] font-bold border leading-none",
-            drsActive
-              ? "bg-pitwall-drs/20 border-pitwall-drs/50 text-pitwall-drs"
-              : "bg-pitwall-dock border-pitwall-hairline text-pitwall-text-muted/40"
+        {/* DRS Indicator (Only highlights when active; keeps column visually quiet when closed) */}
+        <span className="w-7 text-center">
+          {drsActive ? (
+            <span
+              className="inline-block rounded px-1 py-0.2 font-telemetry text-[9px] font-bold bg-pitwall-drs/20 border border-pitwall-drs/50 text-pitwall-drs leading-none shadow-[0_0_4px_rgba(55,214,122,0.3)]"
+              title="DRS Active (Flap Open)"
+            >
+              DRS
+            </span>
+          ) : (
+            <span className="font-telemetry text-[9px] text-pitwall-text-muted/30">—</span>
           )}
-          title={drsActive ? "DRS Active (Flap Open)" : "DRS Closed"}
-        >
-          DRS
         </span>
 
         {/* Follow Driver Camera Toggle */}
@@ -303,12 +321,12 @@ const TimingLadderRow = memo(function TimingLadderRow({
           type="button"
           onClick={(e) => onToggleFollow(e, driverId)}
           className={cn(
-            "rounded p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pitwall-telemetry",
+            "rounded p-0.5 transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pitwall-telemetry",
             isFollowed
-              ? "text-pitwall-signal bg-pitwall-signal/20 ring-1 ring-pitwall-signal/40"
+              ? "text-pitwall-signal bg-pitwall-signal/20 ring-1 ring-pitwall-signal/40 opacity-100"
               : isSelected
-              ? "text-pitwall-text-muted hover:text-white hover:bg-pitwall-elevated"
-              : "opacity-40 group-hover:opacity-100 text-pitwall-text-muted hover:text-white hover:bg-pitwall-elevated"
+              ? "text-pitwall-text-muted hover:text-white hover:bg-pitwall-elevated opacity-70 group-hover:opacity-100"
+              : "opacity-0 group-hover:opacity-100 text-pitwall-text-muted hover:text-white hover:bg-pitwall-elevated"
           )}
           title={
             isFollowed
@@ -324,7 +342,11 @@ const TimingLadderRow = memo(function TimingLadderRow({
   );
 }, areRowPropsEqual);
 
-export function TimingLadder() {
+interface TimingLadderProps {
+  onCollapse?: () => void;
+}
+
+export function TimingLadder({ onCollapse }: TimingLadderProps) {
   const currentFrame = useReplayStore((s) => s.currentFrame);
   const metadata = useReplayStore((s) => s.metadata);
   const selectedDriver = useReplayStore((s) => s.selectedDriver);
@@ -424,7 +446,6 @@ export function TimingLadder() {
 
   const handleSelect = (abbr: string) => {
     setSelectedDriver(abbr);
-    // If camera follow is ALREADY active, smoothly update target to new selection
     if (followedDriver) {
       pixiControls?.followDriver(abbr);
     }
@@ -444,39 +465,51 @@ export function TimingLadder() {
   const driverCount = rows.length;
 
   return (
-    <div className="flex flex-col h-full rounded-sm border border-pitwall-hairline bg-pitwall-dock overflow-hidden select-none">
+    <div className="flex flex-col h-full bg-pitwall-dock overflow-hidden select-none">
       {/* Header Deck */}
-      <div className="flex items-center justify-between border-b border-pitwall-hairline bg-pitwall-surface px-2.5 py-1.5 shrink-0">
-        <div className="flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-pitwall-drs animate-pulse" />
+      <div className="flex items-center justify-between border-b border-pitwall-hairline bg-pitwall-surface/60 px-3 py-2 shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-pitwall-drs animate-pulse" />
           <h2 className="font-display font-bold text-xs uppercase tracking-wider text-pitwall-text">
             TIMING TOWER
           </h2>
         </div>
-        <span className="rounded bg-pitwall-elevated px-1.5 py-0.5 font-telemetry text-[10px] font-bold text-pitwall-telemetry border border-pitwall-hairline">
-          DRIVERS {driverCount}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="rounded bg-pitwall-elevated px-1.5 py-0.5 font-telemetry text-[10px] font-bold text-pitwall-telemetry">
+            DRIVERS {driverCount}
+          </span>
+          {onCollapse && (
+            <button
+              onClick={onCollapse}
+              className="rounded p-1 text-pitwall-text-muted hover:bg-pitwall-elevated hover:text-white transition-colors"
+              title="Collapse sidebar"
+              aria-label="Collapse driver timing ladder"
+            >
+              <PanelLeftClose className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Column Micro-Headers */}
-      <div className="flex items-center justify-between border-b border-pitwall-divider bg-pitwall-dock/80 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-pitwall-text-muted font-display shrink-0">
+      <div className="flex items-center justify-between border-b border-pitwall-divider/60 bg-pitwall-dock/90 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-pitwall-text-muted/70 font-display shrink-0">
         <div className="flex items-center gap-1.5">
           <span className="w-5 text-center">POS</span>
           <span>DRIVER</span>
         </div>
         <div className="flex items-center gap-2 pr-1">
           <span className="hidden md:inline">SECT</span>
-          <span className="w-7 text-right">LAP</span>
+          <span className="w-6 text-right">LAP</span>
           <span className="w-10 text-right">TYRE</span>
-          <span className="w-6 text-center">DRS</span>
+          <span className="w-7 text-center">DRS</span>
           <span className="w-3" />
         </div>
       </div>
 
       {/* 20-Car Dense Scrollable Grid */}
-      <div className="flex-1 overflow-y-auto min-h-0 divide-y divide-pitwall-divider/40">
+      <div className="flex-1 overflow-y-auto min-h-0 divide-y divide-pitwall-divider/30">
         {driverCount === 0 && (
-          <div className="p-3 text-center font-display text-xs text-pitwall-text-muted">
+          <div className="p-4 text-center font-display text-xs text-pitwall-text-muted">
             Waiting for driver telemetry…
           </div>
         )}
@@ -504,7 +537,7 @@ export function TimingLadder() {
       </div>
 
       {/* Technical Footnote (Data Honesty) */}
-      <div className="border-t border-pitwall-divider bg-pitwall-surface/60 px-2 py-1 text-[9px] font-display text-pitwall-text-muted leading-tight shrink-0">
+      <div className="border-t border-pitwall-hairline/60 bg-pitwall-surface/30 px-3 py-1.5 text-[9px] font-display text-pitwall-text-muted/70 leading-tight shrink-0">
         Tyre age estimated client-side (~0.5s). Gaps &amp; intervals unavailable in stream.
       </div>
     </div>

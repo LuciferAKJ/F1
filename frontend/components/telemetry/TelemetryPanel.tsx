@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { Activity, Crosshair, Lock, ShieldAlert } from "lucide-react";
+import { Activity, Crosshair, Lock, ShieldAlert, PanelRightClose } from "lucide-react";
 import { useReplayStore } from "@/store/replayStore";
 import { cn } from "@/lib/utils";
 
@@ -112,15 +112,15 @@ const RevLimiterBar = memo(function RevLimiterBar({ rpm }: { rpm: number }) {
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between text-[9px] font-mono uppercase tracking-wider text-pitwall-text-muted">
-        <span>ENGINE RPM SHIFT ARRAY</span>
-        <span className={cn("font-bold", isRedline ? "text-pitwall-signal animate-pulse" : "text-pitwall-text")}>
+        <span>RPM SHIFT ARRAY</span>
+        <span className={cn("font-bold tabular-nums", isRedline ? "text-pitwall-signal animate-pulse" : "text-pitwall-text")}>
           {safeRpm.toLocaleString()} RPM
         </span>
       </div>
       <div
         className={cn(
-          "grid grid-cols-[repeat(15,minmax(0,1fr))] gap-0.5 rounded-sm p-1 transition-colors",
-          isRedline ? "bg-pitwall-signal/20 border border-pitwall-signal/50" : "bg-pitwall-canvas border border-pitwall-hairline"
+          "grid grid-cols-[repeat(15,minmax(0,1fr))] gap-0.5 rounded p-1 transition-colors",
+          isRedline ? "bg-pitwall-signal/15 border border-pitwall-signal/40" : "bg-pitwall-surface/80"
         )}
       >
         {Array.from({ length: 15 }).map((_, i) => {
@@ -134,7 +134,7 @@ const RevLimiterBar = memo(function RevLimiterBar({ rpm }: { rpm: number }) {
               key={i}
               className={cn(
                 "h-2 w-full rounded-[1px] transition-all duration-75",
-                isActive ? activeColor : "bg-pitwall-surface border border-pitwall-hairline/30 opacity-40"
+                isActive ? activeColor : "bg-pitwall-canvas/60 opacity-30"
               )}
             />
           );
@@ -191,7 +191,7 @@ const GearCenterBlock = memo(function GearCenterBlock({
   const drsOpen = isDrsOpen(drs);
 
   return (
-    <div className="flex flex-col items-center justify-center gap-1.5 rounded bg-pitwall-elevated p-2 border border-pitwall-hairline min-w-[72px]">
+    <div className="flex flex-col items-center justify-center gap-1.5 rounded-md bg-pitwall-dock/90 p-2 min-w-[72px]">
       <span className="font-mono text-[9px] uppercase tracking-widest text-pitwall-text-muted">
         GEAR
       </span>
@@ -209,7 +209,7 @@ const GearCenterBlock = memo(function GearCenterBlock({
           "font-mono text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded transition-all",
           drsOpen
             ? "bg-pitwall-drs text-black shadow-[0_0_8px_rgba(55,214,122,0.5)] animate-pulse"
-            : "bg-pitwall-surface text-pitwall-text-muted/60 border border-pitwall-hairline"
+            : "bg-pitwall-surface text-pitwall-text-muted/60"
         )}
       >
         {drsOpen ? "DRS OPEN" : "DRS CLSD"}
@@ -275,49 +275,38 @@ const ControlInputs = memo(function ControlInputs({
   const throttleWidth = useTransform(throttleSpring, (v) => `${Math.max(0, Math.min(100, v))}%`);
 
   return (
-    <div className="flex flex-col gap-2 rounded bg-pitwall-surface p-2.5 border border-pitwall-hairline">
+    <div className="flex flex-col gap-2 rounded-lg bg-pitwall-surface/60 p-2.5">
       {/* Throttle Bar */}
       <div>
         <div className="mb-1 flex items-center justify-between font-mono text-[10px]">
-          <span className="uppercase tracking-wider text-pitwall-text-muted">THROTTLE (0-100%)</span>
+          <span className="uppercase tracking-wider text-pitwall-text-muted">THROTTLE</span>
           <span className="font-bold text-pitwall-drs tabular-nums">{throttleDisplay}%</span>
         </div>
-        <div className="h-2 w-full overflow-hidden rounded-[1px] bg-pitwall-canvas border border-pitwall-hairline/60">
+        <div className="h-2 w-full overflow-hidden rounded-[2px] bg-pitwall-canvas">
           <motion.div className="h-full bg-pitwall-drs" style={{ width: throttleWidth }} />
         </div>
       </div>
 
-      {/* Brake (Genuinely Binary Indicator) */}
+      {/* Brake (Honest Binary Channel) */}
       <div>
         <div className="mb-1 flex items-center justify-between font-mono text-[10px]">
-          <span className="uppercase tracking-wider text-pitwall-text-muted">BRAKE (BINARY CHANNEL)</span>
+          <span className="uppercase tracking-wider text-pitwall-text-muted">BRAKE</span>
           <span
             className={cn(
-              "font-bold tabular-nums",
+              "font-bold tabular-nums text-[10px]",
               brake ? "text-pitwall-signal animate-pulse" : "text-pitwall-text-muted"
             )}
           >
             {brake ? "BRAKE ON" : "BRAKE OFF"}
           </span>
         </div>
-        <div className="h-2 w-full overflow-hidden rounded-[1px] bg-pitwall-canvas border border-pitwall-hairline/60">
+        <div className="h-2 w-full overflow-hidden rounded-[2px] bg-pitwall-canvas">
           <div
             className={cn(
               "h-full transition-all duration-75",
               brake ? "w-full bg-pitwall-signal" : "w-0 bg-transparent"
             )}
           />
-        </div>
-        <div className="mt-1 flex items-center justify-between font-mono text-[9px] text-pitwall-text-muted/70">
-          <span>PIPELINE: BOOLEAN STATE</span>
-          <span
-            className={cn(
-              "font-bold px-1.5 py-0.5 rounded-[2px]",
-              brake ? "bg-pitwall-signal/20 text-pitwall-signal border border-pitwall-signal/40" : "bg-pitwall-elevated text-pitwall-text-muted/60"
-            )}
-          >
-            {brake ? "BRAKE ON" : "BRAKE OFF"}
-          </span>
         </div>
       </div>
     </div>
@@ -382,7 +371,7 @@ const SynchronizedTraces = memo(function SynchronizedTraces({
   }, [history]);
 
   return (
-    <div className="flex flex-col gap-1.5 rounded bg-pitwall-surface p-2.5 border border-pitwall-hairline">
+    <div className="flex flex-col gap-1.5 rounded-lg bg-pitwall-surface/60 p-2.5">
       <div className="flex items-center justify-between font-mono text-[9px] uppercase tracking-wider text-pitwall-text-muted">
         <span className="flex items-center gap-1 font-bold text-pitwall-text">
           <Activity className="h-3 w-3 text-pitwall-telemetry" />
@@ -404,7 +393,7 @@ const SynchronizedTraces = memo(function SynchronizedTraces({
         </div>
       </div>
 
-      <div className="relative h-[75px] w-full bg-pitwall-canvas rounded-[1px] border border-pitwall-hairline/60 overflow-hidden">
+      <div className="relative h-[75px] w-full bg-pitwall-canvas rounded overflow-hidden">
         {/* Horizontal reference grid lines */}
         <div className="absolute inset-0 flex flex-col justify-between pointer-events-none p-1 opacity-20">
           <div className="w-full border-b border-pitwall-hairline" />
@@ -480,7 +469,7 @@ const SynchronizedTraces = memo(function SynchronizedTraces({
 const UnavailableChip = memo(function UnavailableChip({ label }: { label: string }) {
   return (
     <span
-      className="flex items-center gap-1 rounded bg-pitwall-elevated/60 px-2 py-0.5 font-mono text-[9px] text-pitwall-text-muted/60 border border-pitwall-hairline/40"
+      className="flex items-center gap-1 rounded bg-pitwall-surface/80 px-2 py-0.5 font-mono text-[9px] text-pitwall-text-muted/60"
       title={`${label} is not exposed by the current FastF1 telemetry stream`}
     >
       <Lock className="h-2.5 w-2.5" />
@@ -515,7 +504,11 @@ function useTyreAge(driverId: string | null, compound: string | undefined, lap: 
   }, [driverId, compound, lap]);
 }
 
-export function TelemetryPanel() {
+interface TelemetryPanelProps {
+  onCollapse?: () => void;
+}
+
+export function TelemetryPanel({ onCollapse }: TelemetryPanelProps) {
   const currentFrame = useReplayStore((s) => s.currentFrame);
   const frames = useReplayStore((s) => s.frames);
   const selectedDriver = useReplayStore((s) => s.selectedDriver);
@@ -575,177 +568,193 @@ export function TelemetryPanel() {
   const compoundStyle = COMPOUND_COLORS[driverFrame?.tyre ?? "UNKNOWN"] ?? COMPOUND_COLORS.UNKNOWN;
 
   return (
-    <div className="flex flex-col gap-2.5 rounded bg-pitwall-dock p-2.5 border border-pitwall-hairline">
-      {/* Dock Header */}
-      <div className="flex items-center justify-between border-b border-pitwall-hairline pb-2">
-        <div className="flex items-center gap-1.5">
+    <div className="flex flex-col h-full bg-pitwall-dock overflow-hidden select-none">
+      {/* Dock Header Deck */}
+      <div className="flex items-center justify-between border-b border-pitwall-hairline bg-pitwall-surface/60 px-3 py-2 shrink-0">
+        <div className="flex items-center gap-2">
           <Activity className="h-3.5 w-3.5 text-pitwall-telemetry" />
           <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-pitwall-text">
             TELEMETRY DECK
           </h3>
         </div>
 
-        {selectedDriver && (
-          <button
-            onClick={() => {
-              if (followedDriver === selectedDriver) {
-                setFollowedDriver(null);
-                pixiControls?.stopFollowing();
-                pixiControls?.resetView();
-              } else {
-                setFollowedDriver(selectedDriver);
-                pixiControls?.followDriver(selectedDriver);
+        <div className="flex items-center gap-2">
+          {selectedDriver && (
+            <button
+              onClick={() => {
+                if (followedDriver === selectedDriver) {
+                  setFollowedDriver(null);
+                  pixiControls?.stopFollowing();
+                  pixiControls?.resetView();
+                } else {
+                  setFollowedDriver(selectedDriver);
+                  pixiControls?.followDriver(selectedDriver);
+                }
+              }}
+              className={cn(
+                "flex items-center gap-1 rounded px-2 py-0.5 font-mono text-[10px] font-bold uppercase transition-colors",
+                followedDriver === selectedDriver
+                  ? "bg-pitwall-telemetry/20 text-pitwall-telemetry border border-pitwall-telemetry/40"
+                  : "bg-pitwall-elevated text-pitwall-text-muted hover:text-white"
+              )}
+              title={
+                followedDriver === selectedDriver
+                  ? `Stop camera-following ${selectedDriver}`
+                  : `Lock camera follow onto ${selectedDriver}`
               }
-            }}
-            className={cn(
-              "flex items-center gap-1 rounded px-2 py-0.5 font-mono text-[10px] font-bold uppercase transition-colors",
-              followedDriver === selectedDriver
-                ? "bg-pitwall-telemetry/20 text-pitwall-telemetry border border-pitwall-telemetry/50"
-                : "bg-pitwall-surface text-pitwall-text-muted hover:text-white border border-pitwall-hairline"
-            )}
-            title={
-              followedDriver === selectedDriver
-                ? `Stop camera-following ${selectedDriver}`
-                : `Lock camera follow onto ${selectedDriver}`
-            }
-            aria-label={followedDriver === selectedDriver ? `Stop following ${selectedDriver}` : `Follow ${selectedDriver}`}
-          >
-            <Crosshair className="h-3 w-3" />
-            {followedDriver === selectedDriver ? "FOLLOWING" : "FOLLOW"}
-          </button>
-        )}
+              aria-label={followedDriver === selectedDriver ? `Stop following ${selectedDriver}` : `Follow ${selectedDriver}`}
+            >
+              <Crosshair className="h-3 w-3" />
+              {followedDriver === selectedDriver ? "FOLLOWING" : "FOLLOW"}
+            </button>
+          )}
+
+          {onCollapse && (
+            <button
+              onClick={onCollapse}
+              className="rounded p-1 text-pitwall-text-muted hover:bg-pitwall-elevated hover:text-white transition-colors"
+              title="Collapse sidebar"
+              aria-label="Collapse telemetry sidebar"
+            >
+              <PanelRightClose className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Empty State when no driver is selected */}
-      {!selectedDriver && (
-        <div className="flex flex-col items-center justify-center gap-2 rounded bg-pitwall-surface p-6 text-center border border-pitwall-hairline">
-          <ShieldAlert className="h-6 w-6 text-pitwall-text-muted/50" />
-          <p className="font-mono text-xs font-bold uppercase tracking-wider text-pitwall-text">
-            NO DRIVER SELECTED
-          </p>
-          <p className="font-mono text-[10px] text-pitwall-text-muted">
-            Click any driver on the timing ladder to inspect synchronized telemetry instruments.
-          </p>
-        </div>
-      )}
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-y-auto min-h-0 px-3 py-2.5 flex flex-col gap-3">
+        {/* Empty State when no driver is selected */}
+        {!selectedDriver && (
+          <div className="flex flex-col items-center justify-center gap-2.5 rounded-lg bg-pitwall-surface/40 p-6 text-center my-auto">
+            <ShieldAlert className="h-7 w-7 text-pitwall-text-muted/40" />
+            <p className="font-mono text-xs font-bold uppercase tracking-wider text-pitwall-text">
+              NO DRIVER SELECTED
+            </p>
+            <p className="font-mono text-[10px] text-pitwall-text-muted leading-relaxed">
+              Click any driver on the timing ladder to inspect synchronized telemetry instruments.
+            </p>
+          </div>
+        )}
 
-      {/* Driver Telemetry Data View */}
-      <AnimatePresence initial={false}>
-        {selectedDriver && driverFrame && (
-          <motion.div
-            key={selectedDriver}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.1 }}
-            className="flex flex-col gap-2.5"
-          >
-            {/* Driver Identity Strip */}
-            <div className="flex items-center justify-between rounded bg-pitwall-surface p-2 border border-pitwall-hairline">
-              <div className="flex items-center gap-2">
-                <div
-                  className="h-8 w-1.5 rounded-full"
-                  style={{ backgroundColor: teamColor }}
-                />
-                <div className="flex flex-col">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="font-display text-lg font-black tracking-wide text-pitwall-text">
-                      {selectedDriver}
-                    </span>
-                    <span className="font-mono text-[10px] text-pitwall-text-muted font-bold">
-                      #{driverMeta?.driverNumber ?? "—"}
+        {/* Driver Telemetry Data View */}
+        <AnimatePresence initial={false}>
+          {selectedDriver && driverFrame && (
+            <motion.div
+              key={selectedDriver}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.1 }}
+              className="flex flex-col gap-3"
+            >
+              {/* Driver Identity Strip */}
+              <div className="flex items-center justify-between rounded-lg bg-pitwall-surface/60 p-2.5">
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className="h-8 w-1.5 rounded-full"
+                    style={{ backgroundColor: teamColor }}
+                  />
+                  <div className="flex flex-col">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-display text-lg font-black tracking-wide text-pitwall-text">
+                        {selectedDriver}
+                      </span>
+                      <span className="font-mono text-[10px] text-pitwall-text-muted font-bold">
+                        #{driverMeta?.driverNumber ?? "—"}
+                      </span>
+                    </div>
+                    <span className="font-mono text-[9px] uppercase tracking-wider text-pitwall-text-muted truncate max-w-[140px]">
+                      {driverMeta?.teamName ?? "FORMULA 1"}
                     </span>
                   </div>
-                  <span className="font-mono text-[9px] uppercase tracking-wider text-pitwall-text-muted truncate max-w-[140px]">
-                    {driverMeta?.teamName ?? "FORMULA 1"}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="rounded bg-pitwall-elevated px-2 py-0.5 font-mono text-xs font-bold text-pitwall-text">
+                    P{driverFrame.position}
+                  </span>
+                  <span className="rounded bg-pitwall-elevated px-2 py-0.5 font-mono text-[10px] text-pitwall-text-muted">
+                    L{driverFrame.lap}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                <span className="rounded bg-pitwall-elevated px-2 py-0.5 font-mono text-xs font-bold text-pitwall-text border border-pitwall-hairline">
-                  P{driverFrame.position}
-                </span>
-                <span className="rounded bg-pitwall-elevated px-2 py-0.5 font-mono text-[10px] text-pitwall-text-muted border border-pitwall-hairline">
-                  L{driverFrame.lap}
-                </span>
-              </div>
-            </div>
+              {/* Formula 1 Shift Lights Rev Bar */}
+              <RevLimiterBar rpm={driverFrame.rpm} />
 
-            {/* Formula 1 Shift Lights Rev Bar */}
-            <RevLimiterBar rpm={driverFrame.rpm} />
-
-            {/* Core Instrument Cluster: Speed, Gear & DRS, RPM */}
-            <div className="grid grid-cols-3 items-center rounded bg-pitwall-surface p-1.5 border border-pitwall-hairline">
-              <SpeedDial speed={driverFrame.speed} peakSpeed={peakSpeed} />
-              <GearCenterBlock gear={driverFrame.gear} drs={driverFrame.drs} />
-              <RpmDial rpm={driverFrame.rpm} />
-            </div>
-
-            {/* Linear Control Inputs (Throttle & Honest Binary Brake) */}
-            <ControlInputs throttle={driverFrame.throttle} brake={driverFrame.brake} />
-
-            {/* Tyre & Sector Status Row */}
-            <div className="grid grid-cols-2 gap-2">
-              {/* Tyre Compound Badge */}
-              <div className="flex items-center justify-between rounded bg-pitwall-surface p-2 border border-pitwall-hairline font-mono text-[10px]">
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className="h-2.5 w-2.5 rounded-full border border-black/40"
-                    style={{ backgroundColor: compoundStyle.bg }}
-                  />
-                  <span className="font-bold text-pitwall-text">{driverFrame.tyre}</span>
-                </div>
-                <span className="text-pitwall-text-muted font-semibold">
-                  {tyreAge !== null ? `${tyreAge}L est.` : "N/A"}
-                </span>
+              {/* Core Instrument Cluster: Speed, Gear & DRS, RPM */}
+              <div className="grid grid-cols-3 items-center rounded-lg bg-pitwall-surface/60 p-1.5">
+                <SpeedDial speed={driverFrame.speed} peakSpeed={peakSpeed} />
+                <GearCenterBlock gear={driverFrame.gear} drs={driverFrame.drs} />
+                <RpmDial rpm={driverFrame.rpm} />
               </div>
 
-              {/* Active Sector Indicators */}
-              <div className="flex items-center justify-between rounded bg-pitwall-surface p-2 border border-pitwall-hairline font-mono text-[10px]">
-                <span className="text-pitwall-text-muted">SECTOR</span>
-                <div className="flex items-center gap-1.5">
-                  {[1, 2, 3].map((s) => (
+              {/* Linear Control Inputs (Throttle & Honest Binary Brake) */}
+              <ControlInputs throttle={driverFrame.throttle} brake={driverFrame.brake} />
+
+              {/* Tyre & Sector Status Row */}
+              <div className="grid grid-cols-2 gap-2 font-mono text-[10px]">
+                {/* Tyre Compound Badge */}
+                <div className="flex items-center justify-between rounded-lg bg-pitwall-surface/60 px-2.5 py-2">
+                  <div className="flex items-center gap-1.5">
                     <span
-                      key={s}
-                      className={cn(
-                        "flex h-4 w-4 items-center justify-center rounded-[2px] text-[9px] font-bold transition-colors",
-                        s === driverFrame.sector
-                          ? "bg-pitwall-warning text-black"
-                          : "bg-pitwall-elevated text-pitwall-text-muted/60"
-                      )}
-                    >
-                      {s}
-                    </span>
-                  ))}
+                      className="h-2.5 w-2.5 rounded-full border border-black/40"
+                      style={{ backgroundColor: compoundStyle.bg }}
+                    />
+                    <span className="font-bold text-pitwall-text">{driverFrame.tyre}</span>
+                  </div>
+                  <span className="text-pitwall-text-muted font-semibold">
+                    {tyreAge !== null ? `${tyreAge}L est.` : "N/A"}
+                  </span>
+                </div>
+
+                {/* Active Sector Indicators */}
+                <div className="flex items-center justify-between rounded-lg bg-pitwall-surface/60 px-2.5 py-2">
+                  <span className="text-pitwall-text-muted">SECTOR</span>
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3].map((s) => (
+                      <span
+                        key={s}
+                        className={cn(
+                          "flex h-4 w-4 items-center justify-center rounded text-[9px] font-bold transition-colors",
+                          s === driverFrame.sector
+                            ? "bg-amber-400 text-black shadow-xs"
+                            : "bg-pitwall-elevated/70 text-pitwall-text-muted/60"
+                        )}
+                      >
+                        {s}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Synchronized Real Rolling Telemetry Traces */}
-            <SynchronizedTraces history={traceHistory} />
+              {/* Synchronized Real Rolling Telemetry Traces */}
+              <SynchronizedTraces history={traceHistory} />
 
-            {/* Unavailable Systems & Pipeline Transparency */}
-            <div className="flex flex-col gap-1 rounded bg-pitwall-surface p-2 border border-pitwall-hairline">
-              <div className="flex items-center justify-between font-mono text-[9px] text-pitwall-text-muted">
-                <span>UNSUPPORTED CHANNELS</span>
-                <span className="text-pitwall-text-muted/60">PIPELINE BOUNDARY</span>
+              {/* Unavailable Systems & Pipeline Transparency */}
+              <div className="flex flex-col gap-1.5 rounded-lg bg-pitwall-surface/40 p-2">
+                <div className="flex items-center justify-between font-mono text-[9px] text-pitwall-text-muted">
+                  <span>UNSUPPORTED CHANNELS</span>
+                  <span className="text-pitwall-text-muted/60 text-[8px]">PIPELINE BOUNDARY</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <UnavailableChip label="ERS" />
+                  <UnavailableChip label="PIT LIMITER" />
+                  <UnavailableChip label="TYRE WEAR" />
+                  <UnavailableChip label="G-FORCE" />
+                </div>
               </div>
-              <div className="flex flex-wrap gap-1.5 pt-0.5">
-                <UnavailableChip label="ERS" />
-                <UnavailableChip label="PIT LIMITER" />
-                <UnavailableChip label="TYRE WEAR" />
-                <UnavailableChip label="G-FORCE" />
-              </div>
-            </div>
 
-            {/* Technical Honesty Footnote */}
-            <p className="font-mono text-[8px] leading-tight text-pitwall-text-muted/60 px-0.5">
-              DATA HONESTY: Speed, RPM, Gear, Throttle, Brake (binary), DRS, and Tyre compound are real FastF1 stream data. Tyre age is client-estimated (est.). ERS, temperatures, and G-force are unavailable in pipeline.
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              {/* Technical Honesty Footnote */}
+              <p className="font-mono text-[8px] leading-tight text-pitwall-text-muted/50 px-1 pb-1">
+                DATA HONESTY: Speed, RPM, Gear, Throttle, Brake (binary), DRS, and Tyre compound are real FastF1 stream data. Tyre age is client-estimated (est.). ERS, temperatures, and G-force are unavailable in pipeline.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

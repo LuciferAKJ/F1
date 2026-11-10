@@ -9,7 +9,6 @@ import {
   Timer,
   Radio,
   Layers,
-  Sparkles,
 } from "lucide-react";
 import { useReplayStore } from "@/store/replayStore";
 import type { SelectedRace } from "@/store/replayStore";
@@ -56,19 +55,19 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard({
     return metadata.drivers.find((d) => d.abbreviation === selectedDriver) ?? null;
   }, [selectedDriver, metadata]);
 
-  const tabs: { id: WorkbenchTab; label: string; icon: React.ElementType }[] = [
-    { id: "telemetry", label: "TELEMETRY", icon: Activity },
-    { id: "laps", label: "LAP COMPARISON", icon: Timer },
-    { id: "race-control", label: "RACE CONTROL", icon: Radio },
-    { id: "strategy", label: "STRATEGY", icon: Layers },
+  const tabs: { id: WorkbenchTab; label: string; shortLabel: string; icon: React.ElementType }[] = [
+    { id: "telemetry", label: "TELEMETRY", shortLabel: "TRACES", icon: Activity },
+    { id: "laps", label: "LAP COMPARISON", shortLabel: "LAPS", icon: Timer },
+    { id: "race-control", label: "RACE CONTROL", shortLabel: "EVENTS", icon: Radio },
+    { id: "strategy", label: "STRATEGY", shortLabel: "STRATEGY", icon: Layers },
   ];
 
   return (
-    <div className="flex flex-col rounded-sm border border-pitwall-hairline bg-pitwall-dock select-none">
+    <div className="flex flex-col rounded-sm border border-pitwall-hairline bg-pitwall-dock select-none overflow-hidden">
       {/* Workbench Header & Navigation Deck */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 border-b border-pitwall-hairline/80 bg-pitwall-dock">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 border-b border-pitwall-hairline/80 bg-pitwall-dock">
         {/* Left: Workbench Identifier & Driver Spotlight */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           <button
             onClick={() => setExpanded((prev) => !prev)}
             className="flex items-center gap-1.5 font-display text-[11px] font-black uppercase tracking-wider text-pitwall-text hover:text-pitwall-telemetry transition-colors"
@@ -86,7 +85,7 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard({
 
           {/* Active Driver Pill */}
           {driverData ? (
-            <div className="flex items-center gap-1 rounded bg-pitwall-surface px-2 py-0.5 border border-pitwall-hairline">
+            <div className="flex items-center gap-1 rounded bg-pitwall-surface px-1.5 sm:px-2 py-0.5 border border-pitwall-hairline">
               <span
                 className="h-2 w-1 rounded-xs"
                 style={{ backgroundColor: driverData.teamColor }}
@@ -99,13 +98,13 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard({
               </span>
             </div>
           ) : (
-            <span className="font-display text-[10px] text-pitwall-text-muted uppercase">
+            <span className="hidden sm:inline font-display text-[10px] text-pitwall-text-muted uppercase">
               No Driver Selected
             </span>
           )}
 
           {/* Replay Time Sync Indicator */}
-          <div className="hidden sm:flex items-center gap-1 font-telemetry text-[9px] text-pitwall-text-muted bg-pitwall-surface/60 px-1.5 py-0.5 rounded border border-pitwall-hairline/50">
+          <div className="hidden md:flex items-center gap-1 font-telemetry text-[9px] text-pitwall-text-muted bg-pitwall-surface/60 px-1.5 py-0.5 rounded border border-pitwall-hairline/50">
             <span
               className={cn(
                 "h-1.5 w-1.5 rounded-full",
@@ -117,8 +116,12 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard({
         </div>
 
         {/* Center: Four Tab Navigation Switches */}
-        <div className="flex items-center gap-0.5 rounded bg-pitwall-surface p-0.5 border border-pitwall-hairline">
-          {tabs.map(({ id, label, icon: Icon }) => {
+        <div
+          role="tablist"
+          aria-label="Analytics Views"
+          className="flex items-center gap-0.5 rounded bg-pitwall-surface p-0.5 border border-pitwall-hairline max-w-full overflow-x-auto"
+        >
+          {tabs.map(({ id, label, shortLabel, icon: Icon }) => {
             const isActive = activeTab === id;
             return (
               <button
@@ -128,7 +131,7 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard({
                   if (!expanded) setExpanded(true);
                 }}
                 className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded font-display text-[10px] font-bold tracking-wider uppercase transition-all",
+                  "flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded font-display text-[9px] sm:text-[10px] font-bold tracking-wider uppercase transition-all whitespace-nowrap",
                   isActive
                     ? "bg-pitwall-elevated text-pitwall-telemetry border border-pitwall-telemetry/40 shadow-xs"
                     : "text-pitwall-text-muted hover:text-pitwall-text hover:bg-pitwall-dock/60"
@@ -142,34 +145,26 @@ export const AnalyticsDashboard = memo(function AnalyticsDashboard({
                     isActive ? "text-pitwall-telemetry" : "text-pitwall-text-muted"
                   )}
                 />
-                <span>{label}</span>
+                <span className="hidden sm:inline">{label}</span>
+                <span className="sm:hidden">{shortLabel}</span>
               </button>
             );
           })}
         </div>
-
-        {/* Right: Quick Context / Status */}
-        <div className="flex items-center gap-2">
-          {race?.event && (
-            <span className="hidden md:inline font-display text-[10px] text-pitwall-text-muted uppercase tracking-wider">
-              {race.event} {race.year > 0 ? race.year : "DEMO"}
-            </span>
-          )}
-        </div>
       </div>
 
-      {/* Workbench Content Area */}
+      {/* Collapsible View Body */}
       <AnimatePresence initial={false}>
         {expanded && (
           <motion.div
-            id="analytics-workbench-content"
+            key="workbench-content"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.18, ease: "easeInOut" }}
-            className="overflow-hidden"
+            transition={{ duration: 0.15, ease: "easeInOut" }}
+            className="overflow-hidden bg-pitwall-canvas/40"
           >
-            <div className="p-2.5 bg-pitwall-dock/95">
+            <div className="p-2 sm:p-2.5">
               {activeTab === "telemetry" && (
                 <TelemetryTracesView race={race} onSeek={onSeek} />
               )}

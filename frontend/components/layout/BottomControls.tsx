@@ -7,9 +7,9 @@ import {
   RotateCcw,
   ChevronLeft,
   ChevronRight,
-  ArrowRightLeft,
-  Sparkles,
   Clock,
+  Sparkles,
+  ArrowRightLeft,
   Trash2,
 } from "lucide-react";
 import { useReplayStore } from "@/store/replayStore";
@@ -17,10 +17,13 @@ import { toast } from "@/store/toastStore";
 import { cn } from "@/lib/utils";
 import type { RaceIntelligence } from "@/lib/raceIntelligence";
 
-/**
- * Format seconds into F1 standard telemetry time format (HH:MM:SS.mmm or MM:SS.mmm).
- * Tabular numerals ensure jitter-free display during 60 FPS playback.
- */
+interface BottomControlsProps {
+  onSeek: (timestamp: number) => void;
+  intelligence?: RaceIntelligence | null;
+}
+
+const SUPPORTED_SPEEDS = [1, 2, 4];
+
 function formatRaceTime(seconds: number, includeMs = false): string {
   const safeSec = Math.max(0, isNaN(seconds) ? 0 : seconds);
   const h = Math.floor(safeSec / 3600);
@@ -41,8 +44,6 @@ function formatRaceTime(seconds: number, includeMs = false): string {
   return base;
 }
 
-const SUPPORTED_SPEEDS = [1, 2, 4];
-
 interface MarkerItem {
   id: string;
   timestamp: number;
@@ -52,31 +53,36 @@ interface MarkerItem {
   lap: number;
 }
 
-interface BottomControlsProps {
-  onSeek: (timestamp: number) => void;
-  intelligence?: RaceIntelligence | null;
+interface MarkerCluster {
+  id: string;
+  timestamp: number;
+  leftPercent: number;
+  items: MarkerItem[];
 }
 
-export function BottomControls({ onSeek, intelligence }: BottomControlsProps) {
+export const BottomControls = memo(function BottomControls({
+  onSeek,
+  intelligence = null,
+}: BottomControlsProps) {
   const playing = useReplayStore((s) => s.playing);
-  const togglePlay = useReplayStore((s) => s.togglePlay);
-  const pause = useReplayStore((s) => s.pause);
-  const play = useReplayStore((s) => s.play);
-  const seek = useReplayStore((s) => s.seek);
-  const playbackSpeed = useReplayStore((s) => s.playbackSpeed);
-  const setSpeed = useReplayStore((s) => s.setSpeed);
   const currentTimestamp = useReplayStore((s) => s.currentTimestamp);
-  const currentLap = useReplayStore((s) => s.currentLap);
-  const currentFrame = useReplayStore((s) => s.currentFrame);
-  const selectedDriver = useReplayStore((s) => s.selectedDriver);
-  const setSelectedDriver = useReplayStore((s) => s.setSelectedDriver);
+  const playbackSpeed = useReplayStore((s) => s.playbackSpeed);
   const metadata = useReplayStore((s) => s.metadata);
-  const reset = useReplayStore((s) => s.reset);
+  const currentFrame = useReplayStore((s) => s.currentFrame);
+  const currentLap = useReplayStore((s) => s.currentLap);
+  const selectedDriver = useReplayStore((s) => s.selectedDriver);
   const selectedRace = useReplayStore((s) => s.selectedRace);
+
+  const togglePlay = useReplayStore((s) => s.togglePlay);
+  const setSpeed = useReplayStore((s) => s.setSpeed);
+  const seek = useReplayStore((s) => s.seek);
+  const pause = useReplayStore((s) => s.pause);
+  const setSelectedDriver = useReplayStore((s) => s.setSelectedDriver);
+  const reset = useReplayStore((s) => s.reset);
   const setSelectedRace = useReplayStore((s) => s.setSelectedRace);
 
   const duration = metadata?.duration ?? 0;
-  const totalLaps = metadata?.totalLaps ?? null;
+  const totalLaps = metadata?.totalLaps ?? metadata?.info?.totalLaps ?? 0;
   const frameInterval = metadata?.frameInterval ?? 0.5;
   const frameRateHz = frameInterval > 0 ? (1 / frameInterval).toFixed(1).replace(/\.0$/, "") : "2";
 
@@ -120,6 +126,31 @@ export function BottomControls({ onSeek, intelligence }: BottomControlsProps) {
 
     return items;
   }, [intelligence]);
+
+  // Cluster nearby markers to eliminate visual stacking
+  const markerClusters = useMemo<MarkerCluster[]>(() => {
+    if (!markers.length || duration <= 0) return [];
+    const sorted = [...markers].sort((a, b) => a.timestamp - b.timestamp);
+    const clusters: MarkerCluster[] = [];
+
+    for (const m of sorted) {
+      const leftPercent = (m.timestamp / duration) * 100;
+      const last = clusters[clusters.length - 1];
+
+      // Cluster if within 2.0% of timeline width
+      if (last && Math.abs(leftPercent - last.leftPercent) < 2.0) {
+        last.items.push(m);
+      } else {
+        clusters.push({
+          id: `cluster-${m.id}`,
+          timestamp: m.timestamp,
+          leftPercent,
+          items: [m],
+        });
+      }
+    }
+    return clusters;
+  }, [markers, duration]);
 
   // Static lap tick positions along timeline
   const lapTicks = useMemo(() => {
@@ -235,10 +266,16 @@ export function BottomControls({ onSeek, intelligence }: BottomControlsProps) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
-      const isTyping =
+      const isInputFocused =
         target &&
-        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
-      if (isTyping || e.metaKey || e.ctrlKey) return;
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable ||
+          (typeof target.closest === "function" &&
+            Boolean(target.closest('[role="combobox"], [role="dialog"], [role="listbox"]'))));
+
+      if (isInputFocused || e.metaKey || e.ctrlKey) return;
 
       if (e.code === "Space") {
         e.preventDefault();
@@ -277,7 +314,11 @@ export function BottomControls({ onSeek, intelligence }: BottomControlsProps) {
   const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (currentTimestamp / duration) * 100)) : 0;
 
   return (
-    <div className="flex flex-col shrink-0 bg-pitwall-dock border-t border-pitwall-hairline px-3 py-2 select-none z-20">
+    <div
+      role="region"
+      aria-label="F1 Playback Controls"
+      className="flex flex-col shrink-0 bg-pitwall-dock border-t border-pitwall-hairline px-3 py-2 select-none z-20"
+    >
       {/* =========================================================================
           TIER A: RACE EVENT RAIL & LAP TICKS
          ========================================================================= */}
@@ -292,35 +333,69 @@ export function BottomControls({ onSeek, intelligence }: BottomControlsProps) {
           />
         ))}
 
-        {/* Real race event chips (Overtakes & Fastest Laps) */}
-        {markers.map((m) => {
-          const leftPercent = duration > 0 ? (m.timestamp / duration) * 100 : 0;
-          const isOvertake = m.kind === "overtake";
+        {/* Real race event chips (Clustered when close to eliminate overlap) */}
+        {markerClusters.map((cluster) => {
+          const isSingle = cluster.items.length === 1;
+          const first = cluster.items[0];
 
+          if (isSingle) {
+            const isOvertake = first.kind === "overtake";
+            return (
+              <button
+                key={first.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  performSeek(first.timestamp);
+                  setSelectedDriver(first.driver);
+                }}
+                onMouseEnter={() => setHoveredMarker(first)}
+                onMouseLeave={() => setHoveredMarker(null)}
+                className="absolute top-0 -translate-x-1/2 p-0.5 rounded hover:scale-125 transition-transform z-10 focus:outline-none"
+                style={{ left: `${cluster.leftPercent}%` }}
+                title={first.tooltip}
+                aria-label={first.tooltip}
+              >
+                {isOvertake ? (
+                  <span className="flex h-3 w-3 items-center justify-center rounded-xs bg-pitwall-telemetry/20 border border-pitwall-telemetry text-pitwall-telemetry">
+                    <ArrowRightLeft className="h-2 w-2" />
+                  </span>
+                ) : (
+                  <span className="flex h-3 w-3 items-center justify-center rounded-xs bg-pitwall-sector/20 border border-pitwall-sector text-pitwall-sector">
+                    <Sparkles className="h-2 w-2" />
+                  </span>
+                )}
+              </button>
+            );
+          }
+
+          // Grouped Multi-Event Cluster
+          const clusterTooltip = cluster.items.map((i) => i.tooltip).join(" · ");
           return (
             <button
-              key={m.id}
+              key={cluster.id}
               onClick={(e) => {
                 e.stopPropagation();
-                performSeek(m.timestamp);
-                setSelectedDriver(m.driver);
+                performSeek(cluster.timestamp);
+                setSelectedDriver(first.driver);
               }}
-              onMouseEnter={() => setHoveredMarker(m)}
+              onMouseEnter={() =>
+                setHoveredMarker({
+                  id: cluster.id,
+                  timestamp: cluster.timestamp,
+                  kind: "overtake",
+                  tooltip: `${cluster.items.length} EVENTS: ${clusterTooltip}`,
+                  driver: first.driver,
+                  lap: first.lap,
+                })
+              }
               onMouseLeave={() => setHoveredMarker(null)}
-              className="absolute top-0 -translate-x-1/2 p-0.5 rounded hover:scale-125 transition-transform z-10 focus:outline-none"
-              style={{ left: `${leftPercent}%` }}
-              title={m.tooltip}
-              aria-label={m.tooltip}
+              className="absolute top-0 -translate-x-1/2 px-1 py-0.2 rounded hover:scale-115 transition-transform z-10 focus:outline-none bg-pitwall-elevated border border-pitwall-telemetry/60 shadow-xs flex items-center gap-0.5 text-[8px] font-mono font-bold text-pitwall-telemetry"
+              style={{ left: `${cluster.leftPercent}%` }}
+              title={clusterTooltip}
+              aria-label={`${cluster.items.length} race events at ${formatRaceTime(cluster.timestamp)}`}
             >
-              {isOvertake ? (
-                <span className="flex h-3 w-3 items-center justify-center rounded-xs bg-pitwall-telemetry/20 border border-pitwall-telemetry text-pitwall-telemetry">
-                  <ArrowRightLeft className="h-2 w-2" />
-                </span>
-              ) : (
-                <span className="flex h-3 w-3 items-center justify-center rounded-xs bg-pitwall-sector/20 border border-pitwall-sector text-pitwall-sector">
-                  <Sparkles className="h-2 w-2" />
-                </span>
-              )}
+              <Sparkles className="h-2 w-2 text-pitwall-telemetry" />
+              <span>{cluster.items.length}</span>
             </button>
           );
         })}
@@ -328,7 +403,7 @@ export function BottomControls({ onSeek, intelligence }: BottomControlsProps) {
         {/* Event Marker Hover Tooltip */}
         {hoveredMarker && (
           <div
-            className="absolute -top-7 -translate-x-1/2 rounded bg-pitwall-elevated px-2 py-0.5 font-mono text-[9px] font-bold text-pitwall-text border border-pitwall-hairline shadow-lg pointer-events-none z-30 whitespace-nowrap"
+            className="absolute -top-7 -translate-x-1/2 rounded bg-pitwall-elevated px-2 py-0.5 font-mono text-[9px] font-bold text-pitwall-text border border-pitwall-hairline shadow-lg pointer-events-none z-30 whitespace-nowrap max-w-[280px] sm:max-w-md truncate"
             style={{ left: `${(hoveredMarker.timestamp / Math.max(1, duration)) * 100}%` }}
           >
             {hoveredMarker.tooltip}
@@ -337,7 +412,7 @@ export function BottomControls({ onSeek, intelligence }: BottomControlsProps) {
       </div>
 
       {/* =========================================================================
-          TIER B: PLAYBACK PROGRESS SCRUBBER TRACK & PLAYHEAD
+          TIER B: PLAYBACK PROGRESS SCRUBBER TRACK & PLAYHEAD (Touch-friendly Hitbox)
          ========================================================================= */}
       <div
         ref={trackRef}
@@ -367,7 +442,7 @@ export function BottomControls({ onSeek, intelligence }: BottomControlsProps) {
             performSeek(duration);
           }
         }}
-        className="relative w-full h-3 cursor-pointer flex items-center group touch-none focus:outline-none"
+        className="relative w-full h-5 py-1 cursor-pointer flex items-center group touch-none focus:outline-none"
       >
         {/* Background track */}
         <div className="w-full h-2 bg-pitwall-canvas rounded-full overflow-hidden border border-pitwall-hairline/80 relative">
@@ -381,30 +456,34 @@ export function BottomControls({ onSeek, intelligence }: BottomControlsProps) {
         {/* Hover preview marker */}
         {hoverPosition && (
           <div
-            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-pitwall-text-muted/60 pointer-events-none"
+            className="absolute top-0 bottom-0 w-0.5 bg-pitwall-telemetry/40 pointer-events-none"
             style={{ left: `${hoverPosition.xPercent}%` }}
-          >
-            <div className="absolute -top-6 left-1/2 -translate-x-1/2 rounded bg-pitwall-canvas px-1.5 py-0.5 font-mono text-[9px] text-pitwall-text border border-pitwall-hairline whitespace-nowrap">
-              {formatRaceTime(hoverPosition.time, true)}
-            </div>
-          </div>
+          />
         )}
 
-        {/* Playhead thumb (Racing Red Pin) */}
+        {/* Active Playhead Thumb */}
         <div
-          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-white border-2 border-pitwall-signal ring-2 ring-pitwall-signal/30 shadow-[0_0_8px_rgba(225,6,0,0.4)] flex items-center justify-center pointer-events-none transition-transform group-hover:scale-110"
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-3.5 w-3.5 rounded-full bg-white border-2 border-pitwall-signal shadow-[0_0_8px_rgba(225,6,0,0.6)] pointer-events-none transition-transform group-hover:scale-125"
           style={{ left: `${progressPercent}%` }}
-        >
-          <div className="w-1.5 h-1.5 rounded-full bg-pitwall-signal" />
-        </div>
+        />
+
+        {/* Hover Timestamp Tooltip */}
+        {hoverPosition && !hoveredMarker && (
+          <div
+            className="absolute -top-6 -translate-x-1/2 rounded bg-pitwall-elevated px-1.5 py-0.5 font-telemetry text-[9px] font-bold text-pitwall-text border border-pitwall-hairline shadow-md pointer-events-none z-30 font-tabular"
+            style={{ left: `${hoverPosition.xPercent}%` }}
+          >
+            {formatRaceTime(hoverPosition.time, true)}
+          </div>
+        )}
       </div>
 
       {/* =========================================================================
-          TRANSPORT CONTROLS ROW
+          TRANSPORT CONTROLS ROW (Responsive Layout)
          ========================================================================= */}
-      <div className="flex items-center justify-between gap-3 mt-1.5 flex-wrap md:flex-nowrap">
+      <div className="flex items-center justify-between gap-2 sm:gap-3 mt-1 flex-wrap sm:flex-nowrap">
         {/* Left: Transport Action Buttons */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1 sm:gap-1.5">
           {/* Reset to Start */}
           <button
             onClick={handleRestart}
@@ -431,7 +510,7 @@ export function BottomControls({ onSeek, intelligence }: BottomControlsProps) {
             title={playing ? "Pause replay (Space)" : "Play replay (Space)"}
             aria-label={playing ? "Pause replay" : "Play replay"}
             aria-pressed={playing}
-            className="h-7 px-3.5 rounded bg-pitwall-signal hover:bg-pitwall-signal/90 text-white font-display font-bold uppercase tracking-wider text-xs flex items-center gap-1.5 shadow-[0_0_10px_rgba(225,6,0,0.3)] transition-all"
+            className="h-7 px-3 sm:px-3.5 rounded bg-pitwall-signal hover:bg-pitwall-signal/90 text-white font-display font-bold uppercase tracking-wider text-xs flex items-center gap-1.5 shadow-[0_0_10px_rgba(225,6,0,0.3)] transition-all"
           >
             {playing ? <Pause className="h-3.5 w-3.5 fill-current" /> : <Play className="h-3.5 w-3.5 fill-current" />}
             <span>{playing ? "PAUSE" : "PLAY"}</span>
@@ -449,7 +528,7 @@ export function BottomControls({ onSeek, intelligence }: BottomControlsProps) {
 
           {/* Speed Selector (1x, 2x, 4x) */}
           <div
-            className="flex items-center rounded bg-pitwall-surface p-0.5 border border-pitwall-hairline ml-1"
+            className="flex items-center rounded bg-pitwall-surface p-0.5 border border-pitwall-hairline ml-0.5 sm:ml-1"
             role="group"
             aria-label="Playback speed"
           >
@@ -459,7 +538,7 @@ export function BottomControls({ onSeek, intelligence }: BottomControlsProps) {
                 onClick={() => setSpeed(sp)}
                 aria-pressed={playbackSpeed === sp}
                 className={cn(
-                  "px-2 py-0.5 rounded font-mono text-[10px] font-bold uppercase transition-colors",
+                  "px-1.5 sm:px-2 py-0.5 rounded font-mono text-[10px] font-bold uppercase transition-colors",
                   playbackSpeed === sp
                     ? "bg-pitwall-elevated text-pitwall-telemetry border border-pitwall-telemetry/40 shadow-xs"
                     : "text-pitwall-text-muted hover:text-white"
@@ -472,11 +551,11 @@ export function BottomControls({ onSeek, intelligence }: BottomControlsProps) {
         </div>
 
         {/* Center: Session Metas (Lap, Sector, Elapsed, Duration) */}
-        <div className="flex items-center gap-3 font-mono text-xs">
+        <div className="flex items-center gap-2 sm:gap-3 font-mono text-xs">
           {/* Lap Status */}
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-pitwall-drs animate-pulse" />
-            <span className="font-bold text-pitwall-drs">
+            <span className="font-bold text-pitwall-drs text-[11px] sm:text-xs">
               LAP {currentLap}
               {totalLaps ? ` / ${totalLaps}` : ""}
             </span>
@@ -491,20 +570,20 @@ export function BottomControls({ onSeek, intelligence }: BottomControlsProps) {
 
           {/* Precise Tabular Timestamps */}
           <div className="flex items-baseline gap-1 font-telemetry tabular-nums">
-            <span className="font-bold text-pitwall-text text-sm">
+            <span className="font-bold text-pitwall-text text-xs sm:text-sm">
               {formatRaceTime(currentTimestamp, true)}
             </span>
-            <span className="text-pitwall-text-muted text-xs">
+            <span className="text-pitwall-text-muted text-[10px] sm:text-xs">
               / {formatRaceTime(duration, false)}
             </span>
           </div>
         </div>
 
         {/* Right: Technical Source Metadata & Buffer Controls */}
-        <div className="flex items-center gap-2 font-mono text-[10px]">
+        <div className="hidden md:flex items-center gap-2 font-mono text-[10px]">
           {/* Data rate indicator (Accurate FastF1 source rate) */}
           <div
-            className="hidden sm:flex items-center gap-1 rounded bg-pitwall-surface px-2 py-0.5 border border-pitwall-hairline text-pitwall-text-muted"
+            className="flex items-center gap-1 rounded bg-pitwall-surface px-2 py-0.5 border border-pitwall-hairline text-pitwall-text-muted"
             title={`Telemetry stream sampling interval: ${frameInterval}s (${frameRateHz} Hz)`}
           >
             <Clock className="h-3 w-3 text-pitwall-telemetry" />
@@ -520,10 +599,10 @@ export function BottomControls({ onSeek, intelligence }: BottomControlsProps) {
             title="Clear and reset local session frame buffer"
           >
             <Trash2 className="h-3 w-3" />
-            <span className="hidden md:inline">RESET BUFFER</span>
+            <span>RESET BUFFER</span>
           </button>
         </div>
       </div>
     </div>
   );
-}
+});
