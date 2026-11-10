@@ -3,13 +3,20 @@ import logging
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Path
 
-from models.schemas import SeasonEvent, SessionDetailResponse
+from models.schemas import LatestAvailableSession, SeasonEvent, SessionDetailResponse
 from services import fastf1_service
+from services.availability_service import determine_event_status, get_latest_available_session
 from telemetry.exceptions import TelemetryDataUnavailableError
 from telemetry.pipeline import get_processed_session
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+@router.get("/latest-available", response_model=LatestAvailableSession)
+def latest_available() -> LatestAvailableSession:
+    """Return the latest verified completed Grand Prix with available replay telemetry."""
+    return get_latest_available_session()
 
 
 @router.get("/{year}/events", response_model=list[SeasonEvent])
@@ -22,6 +29,8 @@ def list_events(year: int = Path(..., ge=0, le=2050, description="Championship s
                 country="Demo",
                 location="Virtual Circuit",
                 event_date="2024-03-02",
+                status="available",
+                has_telemetry=True,
             )
         ]
 
@@ -32,12 +41,17 @@ def list_events(year: int = Path(..., ge=0, le=2050, description="Championship s
 
     events: list[SeasonEvent] = []
     for _, row in schedule.iterrows():
+        round_num = int(row["RoundNumber"])
+        ev_date = str(row["EventDate"].date()) if pd.notna(row["EventDate"]) else ""
+        status, has_tel = determine_event_status(year, round_num, ev_date)
         events.append(SeasonEvent(
-            round_number=int(row["RoundNumber"]),
+            round_number=round_num,
             event_name=row["EventName"],
             country=row["Country"],
             location=row["Location"],
-            event_date=str(row["EventDate"].date()) if pd.notna(row["EventDate"]) else "",
+            event_date=ev_date,
+            status=status,
+            has_telemetry=has_tel,
         ))
     return events
 

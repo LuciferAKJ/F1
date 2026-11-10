@@ -67,6 +67,17 @@ def load_cached_session(year: int, event: str, session_type: str) -> ProcessedSe
     elif canon_session == "S":
         candidate_names.append(f"{canon_year}_{safe_event}_Sprint.pkl")
 
+    # Also handle events with/without "_Grand_Prix" suffix
+    if safe_event.endswith("_Grand_Prix"):
+        short_event = safe_event[:-11]
+        candidate_names.append(f"{canon_year}_{short_event}_{canon_session}.pkl")
+        if canon_session == "R":
+            candidate_names.append(f"{canon_year}_{short_event}_Race.pkl")
+    else:
+        candidate_names.append(f"{canon_year}_{safe_event}_Grand_Prix_{canon_session}.pkl")
+        if canon_session == "R":
+            candidate_names.append(f"{canon_year}_{safe_event}_Grand_Prix_Race.pkl")
+
     search_dirs = [_get_cache_dir()]
     for fallback_root in ["./assets/cache/replay", "./backend/assets/cache/replay", "../assets/cache/replay"]:
         abs_fallback = os.path.abspath(fallback_root)

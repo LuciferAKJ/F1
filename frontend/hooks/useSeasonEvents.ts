@@ -9,3 +9,12 @@ export function useSeasonEvents(year: number | null) {
     staleTime: 1000 * 60 * 60, // schedules rarely change
   });
 }
+
+export function useLatestAvailableSession() {
+  return useQuery({
+    queryKey: ["latest-available-session"],
+    queryFn: () => apiClient.getLatestAvailableSession(),
+    staleTime: 1000 * 60 * 60,
+    retry: 1,
+  });
+}

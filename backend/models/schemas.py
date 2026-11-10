@@ -14,6 +14,22 @@ class SeasonEvent(CamelModel):
     country: str
     location: str
     event_date: str
+    status: str | None = None
+    has_telemetry: bool | None = None
+
+
+class LatestAvailableSession(CamelModel):
+    year: int
+    event: str
+    session_type: str = "R"
+    round_number: int
+    event_name: str
+    country: str
+    location: str
+    event_date: str
+    is_demo: bool = False
+    has_telemetry: bool = True
+    status: str = "available"
 
 
 class SessionInfo(CamelModel):

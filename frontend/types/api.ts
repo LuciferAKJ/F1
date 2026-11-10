@@ -7,6 +7,22 @@ export interface SeasonEventDTO {
   country: string;
   location: string;
   eventDate: string;
+  status?: "available" | "upcoming" | "restricted" | "completed";
+  hasTelemetry?: boolean;
+}
+
+export interface LatestAvailableSessionDTO {
+  year: number;
+  event: string;
+  sessionType: string;
+  roundNumber: number;
+  eventName: string;
+  country: string;
+  location: string;
+  eventDate: string;
+  isDemo?: boolean;
+  hasTelemetry?: boolean;
+  status?: string;
 }
 
 export interface SessionInfoDTO {

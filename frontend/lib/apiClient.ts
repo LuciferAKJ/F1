@@ -1,5 +1,5 @@
 import type {
-  SeasonEventDTO, ReplayMetadataDTO, ReplayResponseDTO, ReplayFrameResponseDTO,
+  SeasonEventDTO, LatestAvailableSessionDTO, ReplayMetadataDTO, ReplayResponseDTO, ReplayFrameResponseDTO,
 } from "@/types/api";
 
 const API_BASE =
@@ -17,6 +17,8 @@ async function getJson<T>(path: string): Promise<T> {
 }
 
 export const apiClient = {
+  getLatestAvailableSession: () => getJson<LatestAvailableSessionDTO>("/api/sessions/latest-available"),
+
   getSeasonEvents: (year: number) => getJson<SeasonEventDTO[]>(`/api/sessions/${year}/events`),
 
   getReplayMetadata: (year: number, event: string, sessionType: string) => {

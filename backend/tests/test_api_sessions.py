@@ -25,6 +25,19 @@ def test_list_events_success(app_client):
         assert len(data) == 1
         assert data[0]["eventName"] == "Bahrain Grand Prix"
         assert data[0]["roundNumber"] == 1
+        assert data[0]["status"] == "available"
+        assert data[0]["hasTelemetry"] is True
+
+
+def test_latest_available_session_success(app_client):
+    resp = app_client.get("/api/sessions/latest-available")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "year" in data
+    assert "event" in data
+    assert "sessionType" in data
+    assert data["hasTelemetry"] is True
+    assert data["status"] == "available"
 
 
 def test_list_events_error_handling(app_client):
