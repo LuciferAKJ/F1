@@ -62,7 +62,7 @@ export default function RaceSelectorPage() {
               size="sm"
               variant="outline"
               className="border-amber-500/40 text-amber-300 hover:bg-amber-500/20 shrink-0 font-semibold text-xs"
-              onClick={() => router.push("/replay/0/Demo%20Grand%20Prix/R")}
+              onClick={() => router.push("/replay/demo")}
             >
               Try Demo
             </Button>
