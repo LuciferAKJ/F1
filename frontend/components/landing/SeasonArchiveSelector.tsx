@@ -11,8 +11,10 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  HelpCircle,
+  ShieldCheck,
+  Loader2,
   X,
-  ChevronRight,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -24,38 +26,54 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import type { SeasonEventDTO } from "@/types/api";
+import { getStatusDisplay, isSessionPlayable } from "./availabilityUtils";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const SEASONS = Array.from({ length: CURRENT_YEAR - 2017 }, (_, i) => CURRENT_YEAR - i);
 
 const SESSION_TYPES = [
-  { value: "R", label: "Race (Full Replay)" },
-  { value: "Q", label: "Qualifying" },
-  { value: "S", label: "Sprint" },
+  { value: "R", label: "Race (R)" },
+  { value: "Q", label: "Qualifying (Q)" },
+  { value: "S", label: "Sprint (S)" },
 ];
 
 interface SeasonArchiveSelectorProps {
   selectedYear: number;
   onYearChange: (year: number) => void;
+  sessionType?: string;
+  onSessionTypeChange?: (sessionType: string) => void;
   events: SeasonEventDTO[] | undefined;
   isLoading?: boolean;
   isError?: boolean;
+  verifyingEvent?: string | null;
   onSelectEvent?: (event: SeasonEventDTO) => void;
+  onVerifyEvent?: (eventName: string, sessionType: string) => void;
   selectedEventName?: string;
 }
 
 export function SeasonArchiveSelector({
   selectedYear,
   onYearChange,
+  sessionType,
+  onSessionTypeChange,
   events,
   isLoading,
   isError,
+  verifyingEvent,
   onSelectEvent,
+  onVerifyEvent,
   selectedEventName,
 }: SeasonArchiveSelectorProps) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [sessionType, setSessionType] = useState("R");
+  const [localSessionType, setLocalSessionType] = useState("R");
+
+  const activeSessionType = sessionType ?? localSessionType;
+
+  const handleSessionChange = (nextSession: string) => {
+    setLocalSessionType(nextSession);
+    onSessionTypeChange?.(nextSession);
+  };
 
   const filteredEvents = useMemo(() => {
     if (!events) return [];
@@ -72,9 +90,10 @@ export function SeasonArchiveSelector({
     );
   }, [events, searchQuery]);
 
-  const handleLaunch = (eventName: string, status?: string) => {
-    if (status === "upcoming" || status === "restricted") return;
-    router.push(`/replay/${selectedYear}/${encodeURIComponent(eventName)}/${sessionType}`);
+  const handleLaunch = (ev: SeasonEventDTO) => {
+    if (!isSessionPlayable(ev)) return;
+    const targetSession = ev.sessionType || activeSessionType;
+    router.push(`/replay/${selectedYear}/${encodeURIComponent(ev.eventName)}/${targetSession}`);
   };
 
   return (
@@ -87,10 +106,10 @@ export function SeasonArchiveSelector({
       <div className="flex flex-col gap-4 border-b border-pitwall-hairline/70 pb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="font-display text-2xl font-bold tracking-tight text-white">
-            Season Archive & Discovery
+            Season Archive &amp; Discovery
           </h3>
           <p className="mt-1 text-xs text-pitwall-text-muted">
-            Explore verified telemetry and session archives from 2018 to {CURRENT_YEAR}
+            Inspect verified replays or check FastF1 session availability from 2018 to {CURRENT_YEAR}
           </p>
         </div>
 
@@ -102,13 +121,16 @@ export function SeasonArchiveSelector({
               value={String(selectedYear)}
               onValueChange={(val) => onYearChange(Number(val))}
             >
-              <SelectTrigger className="w-28 h-9 border-pitwall-hairline bg-pitwall-surface font-mono text-xs text-pitwall-text">
+              <SelectTrigger
+                aria-label="Select season year"
+                className="w-28 h-9 border-pitwall-hairline bg-pitwall-surface font-mono text-xs text-pitwall-text"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="border-pitwall-hairline bg-pitwall-dock text-pitwall-text">
                 {SEASONS.map((y) => (
                   <SelectItem key={y} value={String(y)} className="font-mono text-xs">
-                    {y} {y === 2024 && "★"}
+                    {y}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -117,8 +139,11 @@ export function SeasonArchiveSelector({
 
           <div className="flex items-center gap-2">
             <span className="font-mono text-xs text-pitwall-text-muted">Session:</span>
-            <Select value={sessionType} onValueChange={setSessionType}>
-              <SelectTrigger className="w-36 h-9 border-pitwall-hairline bg-pitwall-surface font-mono text-xs text-pitwall-text">
+            <Select value={activeSessionType} onValueChange={handleSessionChange}>
+              <SelectTrigger
+                aria-label="Select session type"
+                className="w-36 h-9 border-pitwall-hairline bg-pitwall-surface font-mono text-xs text-pitwall-text"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="border-pitwall-hairline bg-pitwall-dock text-pitwall-text">
@@ -220,10 +245,11 @@ export function SeasonArchiveSelector({
         ) : (
           <div className="divide-y divide-pitwall-hairline/50 overflow-hidden rounded-lg border border-pitwall-hairline/80 bg-pitwall-surface/40">
             {filteredEvents.map((ev) => {
-              const isUpcoming = ev.status === "upcoming";
-              const isRestricted = ev.status === "restricted" || ev.roundNumber === 0;
-              const isAvailable = !isUpcoming && !isRestricted;
+              const playable = isSessionPlayable(ev);
+              const display = getStatusDisplay(ev);
               const isSelected = selectedEventName === ev.eventName;
+              const evSessionType = ev.sessionType || activeSessionType;
+              const isVerifying = verifyingEvent === ev.eventName;
 
               return (
                 <div
@@ -239,7 +265,7 @@ export function SeasonArchiveSelector({
                     </div>
 
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
                           onClick={() => onSelectEvent?.(ev)}
@@ -250,6 +276,11 @@ export function SeasonArchiveSelector({
                         {isSelected && (
                           <span className="rounded bg-pitwall-telemetry/15 px-1.5 py-0.5 font-mono text-[10px] text-pitwall-telemetry border border-pitwall-telemetry/30">
                             Active Preview
+                          </span>
+                        )}
+                        {ev.verifiedSessions && ev.verifiedSessions.length > 0 && (
+                          <span className="rounded bg-pitwall-dock px-1.5 py-0.5 font-mono text-[10px] text-pitwall-text-muted border border-pitwall-hairline">
+                            Verified: {ev.verifiedSessions.join(", ")}
                           </span>
                         )}
                       </div>
@@ -265,41 +296,69 @@ export function SeasonArchiveSelector({
                             <span>{ev.eventDate}</span>
                           </span>
                         )}
+                        {ev.statusReason && !playable && (
+                          <span className="text-[11px] text-pitwall-text-muted/75">
+                            {ev.statusReason}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-pitwall-hairline/40">
-                    {/* Status Badge */}
-                    {isAvailable && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-pitwall-drs/10 px-2.5 py-1 font-mono text-[11px] font-medium text-pitwall-drs border border-pitwall-drs/30">
+                  <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2.5 pt-2 sm:pt-0 border-t sm:border-t-0 border-pitwall-hairline/40 shrink-0">
+                    {/* Truthful Status Badge */}
+                    {display.status === "available" && (
+                      <span className="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-full bg-pitwall-drs/10 px-2.5 py-1 font-mono text-[11px] font-medium text-pitwall-drs border border-pitwall-drs/30">
                         <CheckCircle2 className="h-3 w-3" />
-                        Replay Ready
+                        {display.label}
                       </span>
                     )}
 
-                    {isUpcoming && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 font-mono text-[11px] font-medium text-amber-400 border border-amber-500/30">
+                    {display.status === "upcoming" && (
+                      <span className="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 font-mono text-[11px] font-medium text-amber-400 border border-amber-500/30">
                         <Clock className="h-3 w-3" />
-                        Upcoming
+                        {display.label}
                       </span>
                     )}
 
-                    {isRestricted && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-pitwall-hairline/40 px-2.5 py-1 font-mono text-[11px] font-medium text-pitwall-text-muted border border-pitwall-hairline">
-                        No Telemetry
+                    {display.status === "unverified" && (
+                      <span className="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-full bg-pitwall-surface px-2.5 py-1 font-mono text-[11px] font-medium text-pitwall-text-muted border border-pitwall-hairline">
+                        <HelpCircle className="h-3 w-3" />
+                        {display.label}
                       </span>
                     )}
 
-                    {/* Action Button */}
-                    {isAvailable ? (
+                    {(display.status === "restricted" || display.status === "unavailable" || display.status === "unknown") && (
+                      <span className="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-full bg-pitwall-hairline/40 px-2.5 py-1 font-mono text-[11px] font-medium text-pitwall-text-muted border border-pitwall-hairline">
+                        <AlertCircle className="h-3 w-3" />
+                        {display.label}
+                      </span>
+                    )}
+
+                    {/* Truthful Action Button */}
+                    {playable ? (
                       <Button
                         size="sm"
-                        onClick={() => handleLaunch(ev.eventName, ev.status)}
-                        className="h-8 gap-1.5 bg-pitwall-signal hover:bg-pitwall-signal/90 text-white font-mono text-xs px-3 shadow-sm"
+                        onClick={() => handleLaunch(ev)}
+                        className="h-8 shrink-0 whitespace-nowrap gap-1.5 bg-pitwall-signal hover:bg-pitwall-signal/90 text-white font-mono text-xs px-3 shadow-sm"
                       >
                         <Play className="h-3 w-3 fill-current" />
                         <span>Launch</span>
+                      </Button>
+                    ) : display.status === "unverified" && onVerifyEvent ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={isVerifying}
+                        onClick={() => onVerifyEvent(ev.eventName, evSessionType)}
+                        className="h-8 shrink-0 whitespace-nowrap gap-1.5 border-pitwall-hairline bg-pitwall-surface hover:bg-pitwall-dock font-mono text-xs text-pitwall-text px-3"
+                      >
+                        {isVerifying ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <ShieldCheck className="h-3 w-3 text-pitwall-telemetry" />
+                        )}
+                        <span>{isVerifying ? "Checking..." : "Check availability"}</span>
                       </Button>
                     ) : (
                       <Button
@@ -308,7 +367,7 @@ export function SeasonArchiveSelector({
                         disabled
                         className="h-8 font-mono text-xs text-pitwall-text-muted/60 opacity-60 cursor-not-allowed"
                       >
-                        <span>Unavailable</span>
+                        <span>{display.status === "upcoming" ? "Upcoming" : "Unavailable"}</span>
                       </Button>
                     )}
                   </div>

@@ -3,76 +3,131 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Flag, Play, Sparkles, Activity } from "lucide-react";
 import Link from "next/link";
-import { useSeasonEvents, useLatestAvailableSession } from "@/hooks/useSeasonEvents";
+import {
+  useSeasonEvents,
+  useLatestAvailableSession,
+  useVerifySessionAvailability,
+} from "@/hooks/useSeasonEvents";
 import { LandingHero } from "@/components/landing/LandingHero";
 import { FeaturedRaceCard } from "@/components/landing/FeaturedRaceCard";
 import { CircuitPreviewCard } from "@/components/landing/CircuitPreviewCard";
 import { RecentRoundsGrid } from "@/components/landing/RecentRoundsGrid";
 import { SeasonArchiveSelector } from "@/components/landing/SeasonArchiveSelector";
+import { isSessionPlayable } from "@/components/landing/availabilityUtils";
 import type { LatestAvailableSessionDTO, SeasonEventDTO } from "@/types/api";
 
 export default function LandingPage() {
-  const { data: latestSession, isLoading: isLatestLoading } = useLatestAvailableSession();
+  const {
+    data: latestSession,
+    isLoading: isLatestLoading,
+    isError: isLatestError,
+  } = useLatestAvailableSession();
 
-  // Active year state (defaults to latest available year or 2024)
-  const [selectedYear, setSelectedYear] = useState<number>(2024);
+  // Dynamic initial season without hardcoded year cap
+  const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getFullYear());
+  const [sessionType, setSessionType] = useState<string>("R");
+  const [selectedEventName, setSelectedEventName] = useState<string | null>(null);
+  const [verifyingEvent, setVerifyingEvent] = useState<string | null>(null);
 
-  // Sync selectedYear once latestSession loads if user hasn't explicitly changed it
+  // Guards against background latestSession load overwriting user selection
+  const userChangedSelectionRef = useRef(false);
+
   useEffect(() => {
-    if (latestSession && latestSession.year > 0) {
+    if (!userChangedSelectionRef.current && latestSession && latestSession.year > 0) {
       setSelectedYear(latestSession.year);
+      if (latestSession.sessionType) {
+        setSessionType(latestSession.sessionType);
+      }
     }
   }, [latestSession]);
 
-  // Selected event for live circuit preview & feature display
-  const [previewEvent, setPreviewEvent] = useState<SeasonEventDTO | null>(null);
+  const {
+    data: seasonEvents,
+    isLoading: isEventsLoading,
+    isError: isEventsError,
+  } = useSeasonEvents(selectedYear, sessionType);
 
-  const { data: seasonEvents, isLoading: isEventsLoading, isError: isEventsError } = useSeasonEvents(selectedYear);
+  const verifyMutation = useVerifySessionAvailability();
 
-  // When season changes, select the first available championship round
-  useEffect(() => {
-    if (seasonEvents && seasonEvents.length > 0) {
-      const firstReal = seasonEvents.find((e) => e.roundNumber > 0 && e.status !== "restricted") || seasonEvents[0];
-      setPreviewEvent(firstReal);
+  const handleVerifyEvent = (eventName: string, targetSessionType: string) => {
+    setVerifyingEvent(eventName);
+    verifyMutation.mutate(
+      { year: selectedYear, event: eventName, sessionType: targetSessionType },
+      {
+        onSettled: () => setVerifyingEvent(null),
+      }
+    );
+  };
+
+  // Resolve the currently focused event from live seasonEvents query data
+  const selectedEvent: SeasonEventDTO | null = useMemo(() => {
+    if (!seasonEvents || seasonEvents.length === 0) return null;
+
+    if (selectedEventName) {
+      const exactMatch = seasonEvents.find((e) => e.eventName === selectedEventName);
+      if (exactMatch) return exactMatch;
     }
-  }, [seasonEvents]);
 
-  // Compute active featured session
-  const activeFeaturedSession: LatestAvailableSessionDTO = useMemo(() => {
-    if (previewEvent) {
+    // If the user explicitly changed year/session without clicking a specific race yet,
+    // pick the best representative round in that season.
+    if (userChangedSelectionRef.current) {
+      return (
+        seasonEvents.find(isSessionPlayable) ||
+        seasonEvents.find((e) => e.roundNumber > 0 && e.status !== "restricted") ||
+        seasonEvents[0]
+      );
+    }
+
+    return null;
+  }, [seasonEvents, selectedEventName]);
+
+  // Compute featured session strictly from verified/discovered state (never hardcoded Bahrain)
+  const activeFeaturedSession: LatestAvailableSessionDTO | null = useMemo(() => {
+    if (selectedEvent) {
+      const evSessionType = selectedEvent.sessionType || sessionType;
       return {
         year: selectedYear,
-        event: previewEvent.eventName,
-        sessionType: "R",
-        roundNumber: previewEvent.roundNumber,
-        eventName: previewEvent.eventName,
-        country: previewEvent.country,
-        location: previewEvent.location,
-        eventDate: previewEvent.eventDate,
+        event: selectedEvent.eventName,
+        sessionType: evSessionType,
+        roundNumber: selectedEvent.roundNumber,
+        eventName: selectedEvent.eventName,
+        country: selectedEvent.country,
+        location: selectedEvent.location,
+        eventDate: selectedEvent.eventDate,
         isDemo: selectedYear === 0,
-        hasTelemetry: previewEvent.hasTelemetry ?? true,
-        status: previewEvent.status ?? "available",
+        hasVerifiedRealSession: isSessionPlayable(selectedEvent),
+        hasTelemetry: selectedEvent.hasTelemetry,
+        verified: selectedEvent.verified,
+        status: selectedEvent.status,
+        totalLaps: selectedEvent.totalLaps ?? null,
+        driverCount: selectedEvent.driverCount ?? null,
+        circuit: selectedEvent.circuit ?? null,
+        statusReason: selectedEvent.statusReason ?? null,
       };
     }
+
     if (latestSession) {
       return latestSession;
     }
-    return {
-      year: 2024,
-      event: "Bahrain Grand Prix",
-      sessionType: "R",
-      roundNumber: 1,
-      eventName: "Bahrain Grand Prix",
-      country: "Bahrain",
-      location: "Sakhir",
-      eventDate: "2024-03-02",
-      isDemo: false,
-      hasTelemetry: true,
-      status: "available",
-    };
-  }, [previewEvent, latestSession, selectedYear]);
 
-  const archiveSectionRef = useRef<HTMLDivElement>(null);
+    return null;
+  }, [selectedEvent, latestSession, selectedYear, sessionType]);
+
+  const handleSelectEvent = (ev: SeasonEventDTO) => {
+    userChangedSelectionRef.current = true;
+    setSelectedEventName(ev.eventName);
+  };
+
+  const handleYearChange = (newYear: number) => {
+    userChangedSelectionRef.current = true;
+    setSelectedYear(newYear);
+    setSelectedEventName(null);
+  };
+
+  const handleSessionTypeChange = (nextSession: string) => {
+    userChangedSelectionRef.current = true;
+    setSessionType(nextSession);
+  };
 
   const handleScrollToArchive = () => {
     const el = document.getElementById("season-archive");
@@ -81,12 +136,18 @@ export default function LandingPage() {
     }
   };
 
+  const isFeaturedLoading =
+    !selectedEvent && !latestSession && (isLatestLoading || isEventsLoading);
+
   return (
     <div className="min-h-screen bg-pitwall-canvas text-pitwall-text selection:bg-pitwall-signal selection:text-white">
       {/* Top Navigation Bar */}
       <header className="sticky top-0 z-50 border-b border-pitwall-hairline bg-pitwall-canvas/90 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-2.5 font-display text-lg font-bold tracking-tight text-white hover:opacity-90">
+          <Link
+            href="/"
+            className="flex items-center gap-2.5 font-display text-lg font-bold tracking-tight text-white hover:opacity-90"
+          >
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-pitwall-signal shadow-md shadow-pitwall-signal/30">
               <Flag className="h-4 w-4 text-white" />
             </span>
@@ -118,12 +179,12 @@ export default function LandingPage() {
 
       {/* Main Interactive Workbench Section */}
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-12">
-        {/* Showcase Grid: Featured Race & Live Circuit Vector Preview */}
+        {/* Showcase Grid: Featured Race & Circuit Preview */}
         <section aria-label="Featured Race & Circuit Preview" className="space-y-4">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-pitwall-telemetry" />
             <h2 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
-              Race Center & Live Circuit
+              Race Center &amp; Circuit Preview
             </h2>
           </div>
 
@@ -131,16 +192,34 @@ export default function LandingPage() {
             <div className="lg:col-span-7 flex flex-col">
               <FeaturedRaceCard
                 session={activeFeaturedSession}
-                isLoading={isLatestLoading && !previewEvent}
+                isLoading={isFeaturedLoading}
+                isError={isLatestError && isEventsError}
+                isVerifying={
+                  activeFeaturedSession !== null &&
+                  verifyingEvent === activeFeaturedSession.eventName
+                }
+                onVerifySession={
+                  activeFeaturedSession && activeFeaturedSession.status === "unverified"
+                    ? () =>
+                        handleVerifyEvent(
+                          activeFeaturedSession.eventName,
+                          activeFeaturedSession.sessionType
+                        )
+                    : undefined
+                }
               />
             </div>
 
             <div className="lg:col-span-5 flex flex-col">
               <CircuitPreviewCard
-                eventName={activeFeaturedSession.eventName}
-                country={activeFeaturedSession.country}
-                location={activeFeaturedSession.location}
-                roundNumber={activeFeaturedSession.roundNumber}
+                eventName={activeFeaturedSession?.eventName ?? "No Session Selected"}
+                country={activeFeaturedSession?.country ?? ""}
+                location={activeFeaturedSession?.location ?? ""}
+                roundNumber={activeFeaturedSession?.roundNumber}
+                totalLaps={activeFeaturedSession?.totalLaps}
+                driverCount={activeFeaturedSession?.driverCount}
+                circuit={activeFeaturedSession?.circuit}
+                isDemo={activeFeaturedSession?.isDemo}
                 className="h-full flex flex-col justify-between"
               />
             </div>
@@ -151,28 +230,29 @@ export default function LandingPage() {
         <section aria-label="Recent Grand Prix Rounds">
           <RecentRoundsGrid
             year={selectedYear}
+            sessionType={sessionType}
             events={seasonEvents}
             isLoading={isEventsLoading}
-            onSelectEvent={(evName) => {
-              const ev = seasonEvents?.find((e) => e.eventName === evName);
-              if (ev) setPreviewEvent(ev);
-            }}
+            verifyingEvent={verifyingEvent}
+            onSelectEvent={handleSelectEvent}
+            onVerifyEvent={handleVerifyEvent}
           />
         </section>
 
         {/* Season Archive and Full Race Discovery */}
-        <section aria-label="Historical Season Archive" ref={archiveSectionRef}>
+        <section aria-label="Historical Season Archive">
           <SeasonArchiveSelector
             selectedYear={selectedYear}
-            onYearChange={(newYear) => {
-              setSelectedYear(newYear);
-              setPreviewEvent(null);
-            }}
+            onYearChange={handleYearChange}
+            sessionType={sessionType}
+            onSessionTypeChange={handleSessionTypeChange}
             events={seasonEvents}
             isLoading={isEventsLoading}
             isError={isEventsError}
-            selectedEventName={activeFeaturedSession.eventName}
-            onSelectEvent={(ev) => setPreviewEvent(ev)}
+            verifyingEvent={verifyingEvent}
+            selectedEventName={activeFeaturedSession?.eventName}
+            onSelectEvent={handleSelectEvent}
+            onVerifyEvent={handleVerifyEvent}
           />
         </section>
       </main>

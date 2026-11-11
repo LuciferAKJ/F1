@@ -75,34 +75,31 @@ Phase 6: Full Responsive Testing & Final Quality Audit
 
 ---
 
-### Phase 1 — Landing Page & Race/Session Discovery [COMPLETED]
+### Phase 1 — Landing Page & Race/Session Discovery [COMPLETED — Updated in Phase 1.1]
 
 - **Status:** COMPLETED & VERIFIED
-- **Objective:** Transform the homepage from an empty dialog box into a full-bleed, spectator-first landing page with dynamic season discovery and truthful session availability.
+- **Objective:** Transform the homepage from an empty dialog box into a full-bleed, spectator-first landing page with dynamic season discovery, session-specific availability states, and verified metadata integrity.
 - **Implemented Files:**
-  - `frontend/app/page.tsx`: Full-bleed responsive landing experience with live hero, featured race center, vector circuit preview, recent rounds grid, and season archive discovery.
-  - `frontend/components/landing/LandingHero.tsx`: Spectator hero header with status pill, feature tags, and quick actions.
-  - `frontend/components/landing/FeaturedRaceCard.tsx`: Highlights verified Grand Prix with round number, country, circuit name, verified status badge, and direct launch button.
-  - `frontend/components/landing/CircuitPreviewCard.tsx`: Dynamic SVG circuit vector preview with FIA Grade 1 badge, turns, DRS zones, and race laps telemetry summary.
-  - `frontend/components/landing/RecentRoundsGrid.tsx`: Responsive grid of recent championship rounds with availability chips and 1-click watch actions.
-  - `frontend/components/landing/SeasonArchiveSelector.tsx`: Interactive season archive (2018–2026) with instant client-side search filtering, session type switcher, and truthful status badges (`Replay Ready`, `Upcoming`, `No Telemetry`).
-  - `frontend/components/ui/input.tsx`: Reusable text input component adhering to Stitch pitwall dark tokens.
-  - `frontend/components/ui/button.tsx`: Added `lg` button variant for primary CTAs.
-  - `backend/services/availability_service.py`: Zero-cost disk cache detection and calendar event status classifier.
-  - `backend/api/sessions.py` & `backend/models/schemas.py`: `GET /api/sessions/latest-available` endpoint and `SeasonEvent` status enrichment.
-  - `frontend/lib/apiClient.ts` & `frontend/hooks/useSeasonEvents.ts`: Added `getLatestAvailableSession` and `useLatestAvailableSession` query hook.
-  - `frontend/e2e/race-selector.spec.ts`: Playwright tests and responsive screenshot capture.
-- **Verification Results:**
+  - `frontend/app/page.tsx`: Full-bleed responsive landing experience preserving user-selected season, session type, and event without hardcoded 2024 Bahrain fallbacks.
+  - `frontend/components/landing/LandingHero.tsx`: Spectator hero header with accurate feature pills, season archive jump action, and clearly labeled Demo CTA (`Sample`).
+  - `frontend/components/landing/FeaturedRaceCard.tsx`: Highlights verified replays (`REPLAY VERIFIED`), explicit sample demo sessions (`SAMPLE DEMO DATA`), unverified on-demand checks (`Check availability`), and truthful null/error fallback without fabricated metrics.
+  - `frontend/components/landing/CircuitPreviewCard.tsx`: Renders normalized SVG circuit geometry only when verified coordinates (`circuit.x`/`y`) exist, or an honest unavailable state with `—` stats.
+  - `frontend/components/landing/RecentRoundsGrid.tsx` & `frontend/components/landing/availabilityUtils.ts`: Truthful round status (`available`, `unverified`, `upcoming`, `restricted`, `unavailable`, `unknown`) requiring `status === "available" && hasTelemetry && verified` before enabling replay launch.
+  - `frontend/components/landing/SeasonArchiveSelector.tsx`: Interactive season archive (`2018`–present) with search filtering, controlled `R`/`Q`/`S` session selector, per-session verified badges, and on-demand verification actions.
+  - `backend/telemetry/cache.py`, `backend/services/availability_service.py`, `backend/api/sessions.py`, `backend/models/schemas.py`: Removed the 2024 season cap, honoured configured `FASTF1_CACHE_DIR`, validated cached `ProcessedSession` objects against official schedules, exposed `GET /api/sessions/{year}/{event}/{session_type}/availability?verify=false|true`, and returned explicit `Demo Grand Prix` fallback when no verified real session exists.
+  - `frontend/types/api.ts`, `frontend/lib/apiClient.ts`, `frontend/hooks/useSeasonEvents.ts`: Added `AbortController` timeouts, session-type query parameters, `checkSessionAvailability`, and `useVerifySessionAvailability` cache updates.
+  - `frontend/e2e/race-selector.spec.ts`: Playwright E2E tests and responsive screenshot capture (`1440×900`, `768×1024`, `390×844`).
+- **Verification Results (Phase 1.1):**
   - `tsc --noEmit`: 0 errors.
   - `next lint`: Clean, 0 warnings, 0 errors.
-  - `vitest`: 19 test files passed, 86 unit tests passed.
-  - `pytest`: 50 tests passed, 0 failures.
-  - `next build`: Static generation of landing page succeeded (37.5 kB).
-  - `playwright`: 3/3 tests passed with full desktop, tablet, and mobile screenshot verification.
+  - `vitest`: 20 test files passed, 94 unit/integration tests passed.
+  - `pytest`: 55 backend tests passed, 0 failures.
+  - `next build`: Static generation of landing page succeeded (`41.6 kB`, `166 kB` First Load JS).
+  - `playwright`: 4/4 landing page tests passed with desktop, tablet, and mobile overflow and screenshot verification.
 - **Risks & Rollback:**
-  - *Risk:* Upstream Jolpica latency when querying schedules.
-  - *Mitigation:* Cache schedule responses aggressively (`staleTime: 1 hour`).
-  - *Rollback:* Fallback to demo race if network query fails.
+  - *Risk:* Upstream FastF1 / Jolpica schedule latency on uncached seasons or on-demand `?verify=true` lookups.
+  - *Mitigation:* Cache schedule responses (`staleTime: 1 hour`), use fast non-blocking disk cache inspection by default, and isolate verification behind explicit user action with `AbortController` timeouts.
+  - *Rollback:* Explicit sample demo replay (`/replay/demo`) remains available independently of upstream APIs.
 
 ---
 

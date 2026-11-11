@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Play, Compass, Activity, Radio, Cpu, ChevronRight } from "lucide-react";
+import { Play, Compass, Activity, Radio, Cpu, ChevronRight, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface LandingHeroProps {
@@ -19,11 +19,11 @@ export function LandingHero({ onExploreClick }: LandingHeroProps) {
 
       <div className="mx-auto max-w-5xl px-4 text-center sm:px-6 lg:px-8">
         {/* Status Pill */}
-        <div className="inline-flex items-center gap-2 rounded-full border border-pitwall-hairline bg-pitwall-surface/80 px-3.5 py-1 text-xs font-mono text-pitwall-text-muted shadow-sm backdrop-blur-md">
-          <span className="flex h-2 w-2 rounded-full bg-pitwall-drs animate-pulse" />
-          <span className="text-pitwall-text font-semibold">2024–2025 SEASON READY</span>
+        <div className="inline-flex flex-wrap items-center justify-center gap-2 rounded-full border border-pitwall-hairline bg-pitwall-surface/80 px-3.5 py-1 text-xs font-mono text-pitwall-text-muted shadow-sm backdrop-blur-md">
+          <span className="flex h-2 w-2 rounded-full bg-pitwall-telemetry" />
+          <span className="text-pitwall-text font-semibold">INTERACTIVE RACE REPLAY</span>
           <span className="text-pitwall-hairline">|</span>
-          <span className="text-pitwall-telemetry font-mono">HIGH-PRECISION TELEMETRY</span>
+          <span className="text-pitwall-telemetry font-mono">TIMING & TELEMETRY WORKBENCH</span>
         </div>
 
         {/* Main Headline */}
@@ -36,7 +36,7 @@ export function LandingHero({ onExploreClick }: LandingHeroProps) {
 
         {/* Subtitle */}
         <p className="mx-auto mt-6 max-w-2xl text-base text-pitwall-text-muted sm:text-lg md:text-xl leading-relaxed">
-          Relive Formula 1 Grand Prix moments with high-frequency 2D circuit simulation, live timing towers, synchronized telemetry traces, and race engineering controls.
+          Relive completed Grand Prix sessions with synchronized 2D circuit visualization, timing towers, driver telemetry traces, and race replay transport controls.
         </p>
 
         {/* Primary Call to Actions */}
@@ -49,6 +49,9 @@ export function LandingHero({ onExploreClick }: LandingHeroProps) {
             <Link href="/replay/demo" className="flex items-center gap-2">
               <Play className="h-4 w-4 fill-white" />
               <span>Watch Instant Demo</span>
+              <span className="rounded bg-black/25 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-white/90">
+                Sample
+              </span>
             </Link>
           </Button>
 
@@ -65,32 +68,32 @@ export function LandingHero({ onExploreClick }: LandingHeroProps) {
           </Button>
         </div>
 
-        {/* Feature telemetry highlights */}
+        {/* Feature highlights */}
         <div className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
           <div className="rounded-lg border border-pitwall-hairline/80 bg-pitwall-dock/60 p-3 backdrop-blur-sm">
             <div className="flex items-center justify-center gap-1.5 text-pitwall-telemetry">
               <Activity className="h-4 w-4" />
-              <span className="font-mono text-sm font-bold">2 Hz Stream</span>
+              <span className="font-mono text-sm font-bold">2 Hz Replay</span>
             </div>
             <div className="mt-1 text-[11px] text-pitwall-text-muted">
-              Live car interpolation
+              Interpolated car frames
             </div>
           </div>
 
           <div className="rounded-lg border border-pitwall-hairline/80 bg-pitwall-dock/60 p-3 backdrop-blur-sm">
             <div className="flex items-center justify-center gap-1.5 text-pitwall-drs">
               <Radio className="h-4 w-4" />
-              <span className="font-mono text-sm font-bold">20 Drivers</span>
+              <span className="font-mono text-sm font-bold">Timing Tower</span>
             </div>
             <div className="mt-1 text-[11px] text-pitwall-text-muted">
-              Full grid track position
+              Full classification order
             </div>
           </div>
 
           <div className="rounded-lg border border-pitwall-hairline/80 bg-pitwall-dock/60 p-3 backdrop-blur-sm">
             <div className="flex items-center justify-center gap-1.5 text-amber-400">
               <Cpu className="h-4 w-4" />
-              <span className="font-mono text-sm font-bold">WebGL PixiJS</span>
+              <span className="font-mono text-sm font-bold">WebGL Canvas</span>
             </div>
             <div className="mt-1 text-[11px] text-pitwall-text-muted">
               Hardware accelerated
@@ -99,10 +102,11 @@ export function LandingHero({ onExploreClick }: LandingHeroProps) {
 
           <div className="rounded-lg border border-pitwall-hairline/80 bg-pitwall-dock/60 p-3 backdrop-blur-sm">
             <div className="flex items-center justify-center gap-1.5 text-rose-400">
-              <span className="font-mono text-sm font-bold">2018–2025</span>
+              <Archive className="h-4 w-4" />
+              <span className="font-mono text-sm font-bold">2018–Present</span>
             </div>
             <div className="mt-1 text-[11px] text-pitwall-text-muted">
-              Verified race archives
+              Season archive lookup
             </div>
           </div>
         </div>

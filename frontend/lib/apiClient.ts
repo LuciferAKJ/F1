@@ -1,5 +1,10 @@
 import type {
-  SeasonEventDTO, LatestAvailableSessionDTO, ReplayMetadataDTO, ReplayResponseDTO, ReplayFrameResponseDTO,
+  SeasonEventDTO,
+  LatestAvailableSessionDTO,
+  SessionAvailabilityDTO,
+  ReplayMetadataDTO,
+  ReplayResponseDTO,
+  ReplayFrameResponseDTO,
 } from "@/types/api";
 
 const API_BASE =
@@ -7,19 +12,36 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ??
   "http://localhost:8000";
 
-async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`);
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`API ${res.status} ${path}: ${detail}`);
+async function getJson<T>(path: string, timeoutMs = 15_000): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, { signal: controller.signal });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`API ${res.status} ${path}: ${detail}`);
+    }
+    return res.json() as Promise<T>;
+  } finally {
+    clearTimeout(timer);
   }
-  return res.json() as Promise<T>;
 }
 
 export const apiClient = {
   getLatestAvailableSession: () => getJson<LatestAvailableSessionDTO>("/api/sessions/latest-available"),
 
-  getSeasonEvents: (year: number) => getJson<SeasonEventDTO[]>(`/api/sessions/${year}/events`),
+  getSeasonEvents: (year: number, sessionType = "R") => {
+    const qs = sessionType && sessionType !== "R" ? `?session_type=${encodeURIComponent(sessionType)}` : "";
+    return getJson<SeasonEventDTO[]>(`/api/sessions/${year}/events${qs}`);
+  },
+
+  checkSessionAvailability: (year: number, event: string, sessionType: string, verify = false) =>
+    getJson<SessionAvailabilityDTO>(
+      `/api/sessions/${year}/${encodeURIComponent(event)}/${encodeURIComponent(sessionType)}/availability${
+        verify ? "?verify=true" : ""
+      }`,
+      verify ? 90_000 : 15_000
+    ),
 
   getReplayMetadata: (year: number, event: string, sessionType: string) => {
     if (year === 0 || event.toLowerCase().includes("demo")) {
