@@ -192,7 +192,10 @@ export function SeasonArchiveSelector({
 
       {/* Error Alert */}
       {isError && (
-        <div className="mt-4 flex items-center gap-2 rounded-lg border border-pitwall-signal/40 bg-pitwall-signal/10 p-3 text-xs text-rose-300">
+        <div
+          role="alert"
+          className="mt-4 flex items-center gap-2 rounded-lg border border-pitwall-signal/40 bg-pitwall-signal/10 p-3 text-xs text-rose-300"
+        >
           <AlertCircle className="h-4 w-4 shrink-0 text-pitwall-signal" />
           <span>
             Unable to load the race schedule for season {selectedYear}. Please check your connection or switch seasons.

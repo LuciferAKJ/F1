@@ -274,16 +274,17 @@ def _verified_sessions_for_row(entries: list[VerifiedCacheMeta], year: int, row:
     ev_name = str(row.get("EventName", "")).strip()
     country = str(row.get("Country", "")).strip()
     location = str(row.get("Location", "")).strip()
+    round_num = int(row.get("RoundNumber", 0))
     codes: list[str] = []
     for entry in entries:
         if entry.year != year:
             continue
-        if _events_match(entry.event, ev_name) or (
-            int(row.get("RoundNumber", 0)) > 0
+        matches_event = _events_match(entry.event, ev_name) or (
+            round_num > 0
             and (_events_match(entry.event, country) or _events_match(entry.event, location))
-        ):
-            if entry.session_type not in codes:
-                codes.append(entry.session_type)
+        )
+        if matches_event and entry.session_type not in codes:
+            codes.append(entry.session_type)
     return sorted(codes, key=lambda c: SESSION_PRIORITY.get(c, 0), reverse=True)
 
 

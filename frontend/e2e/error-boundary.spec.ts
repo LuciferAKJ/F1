@@ -8,7 +8,31 @@ test.describe("Error Boundary & 404 Pages", () => {
   });
 
   test("renders error notification if season events fail to load", async ({ page }) => {
-    await page.route("**/api/sessions/*/events", async (route) => {
+    await page.route("**/api/sessions/latest-available", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          year: 0,
+          event: "Demo",
+          sessionType: "R",
+          roundNumber: 0,
+          eventName: "Demo Grand Prix",
+          country: "Sample Circuit",
+          location: "Simulation",
+          eventDate: "",
+          isDemo: true,
+          hasVerifiedRealSession: false,
+          hasTelemetry: true,
+          verified: true,
+          status: "available",
+          totalLaps: 57,
+          driverCount: 3,
+        }),
+      });
+    });
+
+    await page.route("**/api/sessions/*/events**", async (route) => {
       await route.fulfill({
         status: 500,
         contentType: "application/json",
@@ -17,8 +41,8 @@ test.describe("Error Boundary & 404 Pages", () => {
     });
 
     await page.goto("/");
-    const errorAlert = page.locator("p[role='alert']");
+    const errorAlert = page.getByTestId("season-archive-selector").getByRole("alert");
     await expect(errorAlert).toBeVisible();
-    await expect(errorAlert).toContainText("Failed to load events");
+    await expect(errorAlert).toContainText("Unable to load the race schedule for season");
   });
 });

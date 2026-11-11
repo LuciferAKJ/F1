@@ -175,9 +175,32 @@ test.describe("Responsive Architecture & Multi-Viewport Suite", () => {
     });
   }
 
-  test("homepage 'Try Demo' navigates to canonical /replay/demo route", async ({ page }) => {
+  test("homepage 'Watch Instant Demo' navigates to canonical /replay/demo route", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
-    await page.route("**/api/sessions/*/events", async (route) => {
+    await page.route("**/api/sessions/latest-available", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          year: 0,
+          event: "Demo",
+          sessionType: "R",
+          roundNumber: 0,
+          eventName: "Demo Grand Prix",
+          country: "Sample Circuit",
+          location: "Simulation",
+          eventDate: "",
+          isDemo: true,
+          hasVerifiedRealSession: false,
+          hasTelemetry: true,
+          verified: true,
+          status: "available",
+          totalLaps: 57,
+          driverCount: 3,
+        }),
+      });
+    });
+    await page.route("**/api/sessions/*/events**", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -186,9 +209,10 @@ test.describe("Responsive Architecture & Multi-Viewport Suite", () => {
     });
 
     await page.goto("/");
-    const tryDemoBtn = page.getByRole("button", { name: /Try Demo/i });
-    await expect(tryDemoBtn).toBeVisible();
-    await tryDemoBtn.click();
+    const demoLink = page.getByRole("link", { name: /Watch Instant Demo/i });
+    await expect(demoLink).toBeVisible();
+    await expect(demoLink).toHaveAttribute("href", "/replay/demo");
+    await demoLink.click();
     await expect(page).toHaveURL(/\/replay\/demo$/);
   });
 });

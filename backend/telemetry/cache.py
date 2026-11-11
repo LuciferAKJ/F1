@@ -94,9 +94,7 @@ def is_valid_processed_session(data: object) -> bool:
     if not getattr(data, "drivers", None):
         return False
     replay_data = getattr(data, "replay_data", None)
-    if replay_data is None or not replay_data.frames:
-        return False
-    return True
+    return bool(replay_data is not None and replay_data.frames)
 
 
 def _candidate_filenames(canon_year: int, canon_event: str, canon_session: str) -> list[str]:
