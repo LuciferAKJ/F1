@@ -1,10 +1,18 @@
 import logging
 
-import pandas as pd
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, HTTPException, Path, Query
 
-from models.schemas import SeasonEvent, SessionDetailResponse
-from services import fastf1_service
+from models.schemas import (
+    LatestAvailableSession,
+    SeasonEvent,
+    SessionAvailabilityResponse,
+    SessionDetailResponse,
+)
+from services.availability_service import (
+    check_session_availability,
+    get_latest_available_session,
+    get_season_events_with_availability,
+)
 from telemetry.exceptions import TelemetryDataUnavailableError
 from telemetry.pipeline import get_processed_session
 
@@ -12,34 +20,32 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/{year}/events", response_model=list[SeasonEvent])
-def list_events(year: int = Path(..., ge=0, le=2050, description="Championship season year (0 for demo)")) -> list[SeasonEvent]:
-    if year == 0:
-        return [
-            SeasonEvent(
-                round_number=0,
-                event_name="Demo Grand Prix",
-                country="Demo",
-                location="Virtual Circuit",
-                event_date="2024-03-02",
-            )
-        ]
+@router.get("/latest-available", response_model=LatestAvailableSession)
+def latest_available() -> LatestAvailableSession:
+    """Return the latest verified completed Grand Prix with available replay telemetry,
+    or explicit Demo Grand Prix sample fallback if no real verified replay exists."""
+    return get_latest_available_session()
 
+
+@router.get("/{year}/events", response_model=list[SeasonEvent])
+def list_events(
+    year: int = Path(..., ge=0, le=2050, description="Championship season year (0 for demo)"),
+    session_type: str = Query("R", min_length=1, max_length=10, description="Session type for availability checks"),
+) -> list[SeasonEvent]:
     try:
-        schedule = fastf1_service.get_event_schedule(year)
+        return get_season_events_with_availability(year, session_type=session_type)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Failed to load schedule: {exc}") from exc
 
-    events: list[SeasonEvent] = []
-    for _, row in schedule.iterrows():
-        events.append(SeasonEvent(
-            round_number=int(row["RoundNumber"]),
-            event_name=row["EventName"],
-            country=row["Country"],
-            location=row["Location"],
-            event_date=str(row["EventDate"].date()) if pd.notna(row["EventDate"]) else "",
-        ))
-    return events
+
+@router.get("/{year}/{event}/{session_type}/availability", response_model=SessionAvailabilityResponse)
+async def get_session_availability(
+    year: int = Path(..., ge=0, le=2050, description="Championship season year (0 for demo)"),
+    event: str = Path(..., min_length=1, max_length=100),
+    session_type: str = Path(..., min_length=1, max_length=10),
+    verify: bool = Query(False, description="When true, attempt to load and verify this single session"),
+) -> SessionAvailabilityResponse:
+    return await check_session_availability(year, event, session_type, verify=verify)
 
 
 @router.get("/{year}/{event}/{session_type}", response_model=SessionDetailResponse)
